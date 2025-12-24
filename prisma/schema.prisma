@@ -85,3 +85,8 @@ enum PaymentMethod {
   CREDIT   // Cartão de Crédito
   OTHER    // Outros/Fiado
 }
+
+
+// --- INDICES (Para otimizar buscas comuns) ---
+// Índice para buscar produtos por nome rapidamente
+// (útil para buscas parciais em listas de produtos)
