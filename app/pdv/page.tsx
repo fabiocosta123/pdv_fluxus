@@ -158,7 +158,7 @@ export default function PDVPage() {
   return (
     <div className="h-screen bg-gray-100 font-sans overflow-hidden flex flex-col">
       {/* LAYOUT DESKTOP */}
-      <div className="hidden lg:flex h-full p-4 gap-4 overflow-hidden">
+      <div className="flex flex-col lg:flex-row h-full p-2 lg:p-4 gap-4 overflow-auto lg:overflow-hidden">
         {/* Lado Esquerdo */}
         <div className="flex-1 bg-white rounded-lg shadow-md flex flex-col overflow-hidden">
           <div className="p-4 border-b bg-blue-600 text-white flex justify-between items-center">
