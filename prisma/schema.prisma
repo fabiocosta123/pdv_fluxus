@@ -5,23 +5,22 @@
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
 generator client {
-  provider = "prisma-client-js"  
+  provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql" 
-  
+  provider = "postgresql"
 }
 
 // 1. Cadastro de produtos
 model Product {
-  id String @id @default(uuid())
-  name String
-  barCode String? @unique
-  price Int
-  stock Decimal @default(0) @db.Decimal(10, 3) // aceita 3 casas decimais
-  unit String @default("UN") // UN, KG, LT, etc.
-  ncm String?
+  id        String   @id @default(cuid())
+  name      String
+  barCode   String?  @unique
+  price     Int
+  stock     Decimal  @default(0) @db.Decimal(10, 3) // aceita 3 casas decimais
+  unit      String   @default("UN") // UN, KG, LT, etc.
+  ncm       String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -30,46 +29,52 @@ model Product {
 
 // 2. Cabeçalho da Venda (O registro principal da transação)
 model Sale {
-  id          String   @id @default(uuid())
-  total       Int      // Valor total da venda em centavos
-  status      SaleStatus @default(COMPLETED) // COMPLETED ou CANCELED
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String @id @default(cuid())
+  total     Int // Valor total da venda em centavos
+  totalPaid Int
+  change    Int    @default(0)
+
+  status SaleStatus @default(COMPLETED) // COMPLETED ou CANCELED
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Relações
-  items       SaleItem[]
-  payments    Payment[]
+  items    SaleItem[]
+  payments Payment[]
 }
 
 // 3. Itens da Venda (A "foto" do produto no momento em que foi vendido)
 model SaleItem {
-  id          String   @id @default(uuid())
-  
+  id String @id @default(cuid())
+
   // Relação com a Venda
-  sale        Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
-  saleId      String
-  
+  sale   Sale   @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  saleId String
+
   // Relação com o Produto
-  product     Product  @relation(fields: [productId], references: [id])
-  productId   String
-  
-  quantity    Decimal  @db.Decimal(10, 3) // Quantidade vendida (aceita KG)
-  priceAtSale Int      // O preço que o produto custava na hora (importante para o histórico)
+  product   Product @relation(fields: [productId], references: [id])
+  productId String
+  name      String
+  subtotal  Int
+
+  quantity    Decimal @db.Decimal(10, 3) // Quantidade vendida (aceita KG)
+  priceAtSale Int // O preço que o produto custava na hora (importante para o histórico)
 }
 
 // 4. Pagamentos (Uma venda pode ter vários, ex: parte em dinheiro, parte no PIX)
 model Payment {
-  id          String   @id @default(uuid())
-  
+  id String @id @default(cuid())
+
   // Relação com a Venda
-  sale        Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
-  saleId      String
-  
-  method      PaymentMethod
-  amount      Int      // Quanto foi pago nesse método (em centavos)
-  
-  createdAt   DateTime @default(now())
+  sale   Sale   @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  saleId String
+
+  method PaymentMethod
+  amount Int // Quanto foi pago nesse método (em centavos)
+  value  Int
+
+  createdAt DateTime @default(now())
 }
 
 // --- ENUMS (Definições de opções fixas) ---
@@ -80,13 +85,12 @@ enum SaleStatus {
 }
 
 enum PaymentMethod {
-  MONEY    // Dinheiro
+  MONEY // Dinheiro
   PIX
-  DEBIT    // Cartão de Débito
-  CREDIT   // Cartão de Crédito
-  OTHER    // Outros/Fiado
+  DEBIT // Cartão de Débito
+  CREDIT // Cartão de Crédito
+  OTHER // Outros/Fiado
 }
-
 
 // --- INDICES (Para otimizar buscas comuns) ---
 // Índice para buscar produtos por nome rapidamente
