@@ -89,17 +89,49 @@ export default function PDVPage() {
     toast.info(`${method} lançado: ${(amount / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`);
   }, []);
 
-  const finalizarVenda = useCallback(() => {
+  const finalizarVenda = useCallback(async () => {
     if (remaingBalance > 0) {
       toast.error("Ainda restam valores a pagar!");
       return;
     }
-    toast.success("Venda gravada com sucesso!");
+
+    // Cria um Toast de carregamento para dar feedback ao usuario
+    const toastId = "Processando venda..."
+    toast.loading("Gravando venda, aguarde...", { id: toastId });
+
+    try {
+      const response = await fetch('/api/sales', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cart,
+          payments,
+          total,
+          totalPaid,
+          change
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        toast.error(errorData.error || "Erro ao salvar a venda");
+        throw new Error('Erro ao salvar a venda');
+      }
+
+      toast.success("Venda gravada com sucesso!", { id: toastId });
+    
+    // Reseta o PDV para a proxima venda
     setCart([]);
     setPayments([]);
     setIsPaymentModalOpen(false);
     setBarcode("");
-  }, [remaingBalance]);
+
+    } catch (error: any) {
+      console.error("Erro no checkout:", error);
+      toast.error(`Falha ao finalizar a venda: ${error.message}`, { id: toastId });
+    }
+    
+  }, [cart, payments, total, totalPaid, change, remaingBalance]);
 
   // Lógica de Atalhos de Teclado
   useEffect(() => {
