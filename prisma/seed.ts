@@ -41,6 +41,13 @@ async function main() {
       stock: 5.5,
       unit: 'KG',
     },
+    {
+      name: 'Livro Púlpitos desviados',
+      barCode: '9788574594910',
+      price: 3990,
+      stock: 5,
+      unit: 'UN',
+    }
   ];
 
   for (const p of products) {
