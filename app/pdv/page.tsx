@@ -64,17 +64,23 @@ export default function PDVPage() {
     const currentCode = barcode.trim();
     if (!currentCode) return;
 
+    // toast de feedback visual 
+    const loadingId = toast.loading("Buscando produto...");
+
     try {
-      const response = await fetch(`/api/products/${currentCode}`);
+      const response = await fetch(`/api/products/${encodeURIComponent(currentCode)}`);
+      toast.dismiss(loadingId);
+
       if (!response.ok) {
-        toast.error("Produto não localizado");
-        setBarcode("");
+        toast.error("Produto não localizado");        
         return;
       }
+
       const product: Product = await response.json();
       addToCart(product);
       setBarcode("");
     } catch (error) {
+      toast.dismiss(loadingId);
       toast.error("Erro na busca");
       setBarcode("");
     }
@@ -177,7 +183,7 @@ export default function PDVPage() {
             <tbody>
               {cart.map((item, index) => (
                 <tr key={index} className="border-b text-sm lg:text-lg font-bold hover:bg-gray-50">
-                  <td className="py-3 px-1 text-blue-900 uppercase leading-tight">
+                  <td className="py-3 px-1 text-gray-900 uppercase leading-tight">
                     <div className="line-clamp-2">{item.name}</div>
                     {/* Mostra unitário no mobile abaixo do nome */}
                     <div className="sm:hidden text-[10px] text-gray-400 font-normal">
@@ -207,7 +213,7 @@ export default function PDVPage() {
       {/* Mobile: Ordem 1 (Fica no topo ou fundo, aqui fixo) | Desktop: Largura 450px */}
       <div className="w-full lg:w-[450px] flex flex-col gap-2 lg:gap-4 order-1 lg:order-2 shrink-0">
         
-        {/* Input de Código de Barras */}
+        {/* Input de busca*/}
         <div className="bg-white p-3 lg:p-6 rounded-lg shadow-sm border-t-4 border-blue-600">
           <label className="hidden lg:block text-sm font-black text-blue-900 mb-2 uppercase">Código de Barras</label>
           <form onSubmit={handleSearchProduct}>
@@ -215,11 +221,11 @@ export default function PDVPage() {
               ref={inputRef}
               type="text"
               // inputMode="numeric" ajuda no celular a abrir teclado numérico
-              inputMode="numeric" 
+              inputMode="text" 
               value={barcode}
               onChange={(e) => setBarcode(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg p-3 lg:p-4 text-xl lg:text-4xl font-mono focus:border-blue-600 outline-none bg-gray-50 uppercase placeholder:text-sm lg:placeholder:text-xl"
-              placeholder="Digitar Código..."
+              className="w-full border-2 border-gray-300 rounded-lg p-3 lg:p-4 text-xl lg:text-4xl font-mono focus:border-blue-600 outline-none bg-gray-50 uppercase placeholder:text-sm lg:placeholder:text-xl"
+              placeholder="Digitar Código ou nome..."
             />
           </form>
         </div>
@@ -228,7 +234,7 @@ export default function PDVPage() {
         <div className="bg-blue-900 text-white p-4 lg:p-8 rounded-xl shadow-lg flex flex-row lg:flex-col items-center lg:items-stretch justify-between lg:justify-end gap-4 lg:flex-1 relative overflow-hidden">
            {/* Total Mobile (Esquerda) */}
            <div className="flex flex-col z-10">
-              <span className="text-blue-300 text-xs lg:text-2xl uppercase font-bold">Total a Pagar</span>
+              <span className="text-blue-200 text-xs lg:text-2xl uppercase font-bold">Total a Pagar</span>
               <div className="text-4xl lg:text-8xl font-black leading-none tracking-tight">
                 {(total / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
               </div>
@@ -250,13 +256,13 @@ export default function PDVPage() {
 
       {/* --- MODAL DE PAGAMENTO RESPONSIVO --- */}
       {isPaymentModalOpen && (
-        <div className="fixed inset-0 bg-blue-900/60 backdrop-blur-sm flex items-end lg:items-center justify-center z-[100] p-0 lg:p-4">
+        <div className="fixed inset-0 bg-blue-900/80 backdrop-blur-sm flex items-end lg:items-center justify-center z-[100] p-0 lg:p-4">
           <div className="bg-white rounded-t-3xl lg:rounded-3xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl animate-in slide-in-from-bottom-10">
             
             {/* Cabeçalho Modal */}
-            <div className="p-4 lg:p-6 bg-gray-50 border-b flex justify-between items-center rounded-t-3xl">
-              <h2 className="text-lg lg:text-2xl font-black text-blue-900 uppercase">Pagamento</h2>
-              <button onClick={() => setIsPaymentModalOpen(false)} className="bg-gray-200 p-2 rounded-full hover:bg-red-100 text-gray-600">✕</button>
+            <div className="p-4 lg:p-6 bg-gray-100 border-b flex justify-between items-center rounded-t-3xl">
+              <h2 className="text-lg lg:text-2xl font-black text-blue-800 uppercase">Pagamento</h2>
+              <button onClick={() => setIsPaymentModalOpen(false)} className="bg-gray-300 p-2 rounded-full hover:bg-red-100 text-gray-600">✕</button>
             </div>
 
             {/* Corpo Modal (Scrollável no mobile) */}
@@ -266,14 +272,14 @@ export default function PDVPage() {
                 {/* Coluna Valores */}
                 <div className="space-y-4 lg:space-y-8">
                   <div className="text-center lg:text-left">
-                    <p className="text-gray-400 uppercase font-bold text-[10px] lg:text-xs">Total Geral</p>
+                    <p className="text-gray-500 uppercase font-bold text-[10px] lg:text-xs">Total Geral</p>
                     <p className="text-4xl lg:text-5xl font-black text-blue-600">
                       {(total / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                     </p>
                   </div>
 
-                  <div className="bg-gray-50 p-3 lg:p-4 rounded-xl border-2 border-dashed border-gray-200">
-                    <p className="text-gray-500 uppercase font-bold text-[10px] lg:text-xs mb-1">Valor a Lançar</p>
+                  <div className="bg-white p-3 lg:p-4 rounded-xl border-2 border-dashed border-gray-300">
+                    <p className="text-gray-600 uppercase font-bold text-[10px] lg:text-xs mb-1">Valor a Lançar</p>
                     <div className="flex items-center justify-center lg:justify-start">
                       <span className="text-2xl lg:text-4xl font-black text-blue-900 mr-2">R$</span>
                       <input
@@ -283,7 +289,7 @@ export default function PDVPage() {
                         value={paymentInputValue / 100}
                         onChange={(e) => setPaymentInputValue(e.target.value === "" ? 0 : Math.round(parseFloat(e.target.value) * 100))}
                         onFocus={(e) => e.target.select()}
-                        className="text-4xl lg:text-5xl font-black text-blue-900 outline-none w-full bg-transparent text-center lg:text-left"
+                        className="text-4xl lg:text-5xl font-black text-gray-900 outline-none w-full bg-transparent text-center lg:text-left"
                       />
                     </div>
                   </div>
@@ -298,7 +304,7 @@ export default function PDVPage() {
                     </div>
                     {change > 0 && (
                       <div className="text-right lg:text-left">
-                        <p className="text-blue-500 text-[10px] uppercase font-bold">Troco</p>
+                        <p className="text-blue-600 text-[10px] uppercase font-bold">Troco</p>
                         <p className="text-xl lg:text-2xl font-black text-blue-600">
                           {(change / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                         </p>
@@ -309,7 +315,7 @@ export default function PDVPage() {
 
                 {/* Botões de Pagamento */}
                 <div className="flex flex-col gap-2 lg:gap-3">
-                  <p className="lg:hidden text-xs font-bold text-gray-400 uppercase text-center mt-2">Selecione a forma:</p>
+                  <p className="lg:hidden text-xs font-bold text-gray-500 uppercase text-center mt-2">Selecione a forma:</p>
                   <div className="grid grid-cols-2 gap-2 lg:flex lg:flex-col">
                     <button onClick={() => handleAddPayment("DINHEIRO", paymentInputValue)} className="bg-green-100 text-green-800 p-3 lg:p-5 rounded-xl font-bold border border-green-200 hover:bg-green-200 flex justify-between items-center">
                       <span>💵 Dinheiro</span> <span className="hidden lg:inline text-xs bg-white/50 px-2 rounded">F1</span>
@@ -329,9 +335,9 @@ export default function PDVPage() {
                   {payments.length > 0 && (
                     <div className="mt-2 bg-gray-50 p-2 rounded-lg border border-gray-100 max-h-24 overflow-y-auto text-xs">
                       {payments.map((p, i) => (
-                        <div key={i} className="flex justify-between py-1 border-b last:border-0 border-gray-200">
-                          <span>{p.method}</span>
-                          <span className="font-bold">{(p.value / 100).toFixed(2)}</span>
+                        <div key={i} className="flex justify-between py-1 border-b last:border-0 border-gray-300">
+                          <span className="text-gray-900 font-semibold">{p.method}</span>
+                          <span className="font-bold text-gray-900">{(p.value / 100).toFixed(2)}</span>
                         </div>
                       ))}
                     </div>
@@ -347,7 +353,7 @@ export default function PDVPage() {
                 onClick={finalizarVenda}
                 className={`w-full py-4 lg:py-6 rounded-xl font-black text-lg lg:text-2xl uppercase transition-all shadow-lg ${
                   remaingBalance > 0 
-                  ? "bg-gray-100 text-gray-400 cursor-not-allowed shadow-none" 
+                  ? "bg-gray-200 text-gray-400 cursor-not-allowed shadow-none" 
                   : "bg-green-600 text-white hover:bg-green-500 active:scale-95"
                 }`}
               >
