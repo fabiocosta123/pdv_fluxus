@@ -10,8 +10,20 @@ export async function GET(request: Request,
         const resolvedParams = await params;
         const code = resolvedParams.code.trim();
 
-        const product = await prisma.product.findUnique({
-            where: { barCode: code },
+        const searchInput = decodeURIComponent(resolvedParams.code).trim();
+
+
+
+        const product = await prisma.product.findFirst({
+            where: {
+                OR: [
+                    { barCode: searchInput },
+                    { name : {
+                        contains: searchInput,
+                        mode: 'insensitive'
+                    }}
+                ]
+            }
         });
 
         if (!product) {
@@ -23,8 +35,7 @@ export async function GET(request: Request,
 
         return NextResponse.json(product, { status: 200 });
     } catch (error) {
-        console.error('Erro ao buscar o produto:', error);
-        toast.error('Erro ao buscar o produto');
+        console.error('Erro ao buscar o produto:', error);      
         return NextResponse.json(
             { message: 'Erro ao buscar o produto' },
             { status: 500 }
