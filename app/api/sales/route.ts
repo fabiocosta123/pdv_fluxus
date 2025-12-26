@@ -7,8 +7,45 @@ export async function POST(request: Request) {
         const body = await request.json();
         const { cart, payments, total, totalPaid, change } = body;
 
+        
+
+
         // inicia a transação
         const result = await prisma.$transaction(async (tx) => {
+
+            if (!cart || cart.length === 0) {
+                throw new Error('Carrinho vazio');
+            }
+
+            if (!payments || payments.length === 0) {
+                throw new Error('Nenhum pagamento informado');
+            }
+
+            for (const item of cart) {
+                const product = await tx.product.findUnique({
+                    where: { id: item.id },
+                    select: { stock: true }
+                    })
+
+                    if (!product) {
+                        throw new Error(`Produto não encontrado: ${item.name}`);
+                    }
+
+                if (product.stock < item.quantity) {
+                    throw new Error(`Estoque insuficiente para o produto: ${item.name}`);
+                }
+
+                await tx.product.update({
+                    where: { id: item.id },
+                    data: {
+                        stock: {
+                            decrement: item.quantity,
+                        }
+                    }
+                })
+            }
+
+             
             // cria a venda
             const sale = await tx.sale.create({
                 data: {
@@ -37,17 +74,7 @@ export async function POST(request: Request) {
                 }
             })
 
-            // baixa o estoque dos produtos vendidos
-            for (const item of cart) {
-                await tx.product.update({
-                    where: { id: item.id },
-                    data: {
-                        stock: {
-                            decrement: item.quantity,
-                        }
-                    }
-                })
-            }
+           
 
             return sale;
         })
@@ -55,7 +82,9 @@ export async function POST(request: Request) {
         return NextResponse.json(result, { status: 201 });
 
     } catch (error) {
-        console.error("ERRO_AO_SALVAR_VENDA:", error);
+       if (error instanceof Error) {
+            return NextResponse.json({ error: error.message }, { status: 400 });
+       }
         return NextResponse.json({ error: 'Erro ao salvar a venda' }, { status: 500 });
     }
 }
