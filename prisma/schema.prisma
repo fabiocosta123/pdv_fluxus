@@ -23,6 +23,7 @@ model Product {
   ncm       String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  isActive  Boolean  @default(true)
 
   saleItem SaleItem[] // relação com itens de venda
 }
