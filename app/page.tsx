@@ -14,7 +14,7 @@ export default function HomePage() {
         </Link>
         
         <Link 
-          href="/estoque" 
+          href="/inventory" 
           className="bg-white hover:bg-gray-50 text-blue-900 p-8 rounded-2xl shadow-xl flex flex-col items-center border-2 border-blue-900 transition-transform hover:scale-105"
         >
           <span className="text-5xl mb-2">📦</span>
