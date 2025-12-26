@@ -30,9 +30,9 @@ export default function PDVPage() {
   const remaingBalance = Math.max(0, total - totalPaid);
   const change = totalPaid > total ? totalPaid - total : 0;
 
-  // Foco automático
+  // Foco automático apenas desktop 
   useEffect(() => {
-    if (!isPaymentModalOpen) {
+    if (!isPaymentModalOpen && window.innerWidth > 768) {
       inputRef.current?.focus();
     }
   }, [isPaymentModalOpen]);
@@ -86,7 +86,7 @@ export default function PDVPage() {
       return;
     }
     setPayments((prev) => [...prev, { method, value: amount }]);
-    toast.info(`${method} lançado: ${(amount / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`);
+    toast.info(`${method}: ${(amount / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`);
   }, []);
 
   const finalizarVenda = useCallback(async () => {
@@ -95,9 +95,8 @@ export default function PDVPage() {
       return;
     }
 
-    // Cria um Toast de carregamento para dar feedback ao usuario
-    const toastId = "Processando venda..."
-    toast.loading("Gravando venda, aguarde...", { id: toastId });
+    const toastId = "venda-processando";
+    toast.loading("Processando...", { id: toastId });
 
     try {
       const response = await fetch('/api/sales', {
@@ -110,27 +109,25 @@ export default function PDVPage() {
           totalPaid,
           change
         })
-      })
+      });
+
+      const data = await response.json();
 
       if (!response.ok) {
-        const errorData = await response.json();
-        toast.error(errorData.error || "Erro ao salvar a venda");
-        throw new Error('Erro ao salvar a venda');
+        throw new Error(data.error || "Erro ao salvar");
       }
 
-      toast.success("Venda gravada com sucesso!", { id: toastId });
-    
-    // Reseta o PDV para a proxima venda
-    setCart([]);
-    setPayments([]);
-    setIsPaymentModalOpen(false);
-    setBarcode("");
+      toast.success("Venda realizada!", { id: toastId });
+      
+      setCart([]);
+      setPayments([]);
+      setIsPaymentModalOpen(false);
+      setBarcode("");
 
     } catch (error: any) {
-      console.error("Erro no checkout:", error);
-      toast.error(`Falha ao finalizar a venda: ${error.message}`, { id: toastId });
+      console.error("Erro:", error);
+      toast.error(`Erro: ${error.message}`, { id: toastId });
     }
-    
   }, [cart, payments, total, totalPaid, change, remaingBalance]);
 
   // Lógica de Atalhos de Teclado
@@ -156,175 +153,208 @@ export default function PDVPage() {
   }, [isPaymentModalOpen, cart.length, paymentInputValue, remaingBalance, handleAddPayment, finalizarVenda]);
 
   return (
-    <div className="h-screen bg-gray-100 font-sans overflow-hidden flex flex-col">
-      {/* LAYOUT DESKTOP */}
-      <div className="flex flex-col lg:flex-row h-full p-2 lg:p-4 gap-4 overflow-auto lg:overflow-hidden">
-        {/* Lado Esquerdo */}
-        <div className="flex-1 bg-white rounded-lg shadow-md flex flex-col overflow-hidden">
-          <div className="p-4 border-b bg-blue-600 text-white flex justify-between items-center">
-            <h1 className="text-xl font-bold italic">🛒 PDV SISTEMA - VENDA ATIVA</h1>
-            <span className="text-xs bg-blue-800 px-2 py-1 rounded">CAIXA LIVRE</span>
-          </div>
-
-          <div className="flex-1 overflow-auto p-4">
-            <table className="w-full text-left border-collapse">
-              <thead className="sticky top-0 bg-white z-10">
-                <tr className="border-b-2 text-gray-400 uppercase text-xs font-bold tracking-widest">
-                  <th className="py-3 px-2">Descrição do Item</th>
-                  <th className="px-2 w-20">Qtd</th>
-                  <th className="px-2 w-32 text-right">Unitário</th>
-                  <th className="px-2 w-32 text-right">Subtotal</th>
-                </tr>
-              </thead>
-              <tbody>
-                {cart.map((item, index) => (
-                  <tr key={index} className="border-b text-lg font-bold hover:bg-gray-50 transition-colors">
-                    <td className="py-4 px-2 text-blue-900 uppercase">{item.name}</td>
-                    <td className="px-2 text-gray-600">{item.quantity}</td>
-                    <td className="px-2 text-right text-gray-500">{(item.price / 100).toFixed(2)}</td>
-                    <td className="px-2 text-right text-blue-600 font-black">
-                      {(item.subtotal / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+    
+    <div className="h-[100dvh] bg-gray-100 font-sans overflow-hidden flex flex-col lg:flex-row p-2 lg:p-4 gap-2 lg:gap-4">
+      
+      {/* --- COLUNA ESQUERDA: LISTA DE PRODUTOS --- */}
+      {/* Mobile: Ordem 2 (fica abaixo do input se quiser, Desktop: Ordem 1 */}
+      <div className="flex-1 bg-white rounded-lg shadow-sm flex flex-col overflow-hidden order-2 lg:order-1 h-full">
+        <div className="p-3 border-b bg-blue-600 text-white flex justify-between items-center shrink-0">
+          <h1 className="text-sm lg:text-xl font-bold italic">🛒 PDV ATIVO</h1>
+          <span className="text-[10px] lg:text-xs bg-blue-800 px-2 py-1 rounded">LIVRE</span>
         </div>
 
-        {/* Lado Direito */}
-        <div className="w-[450px] flex flex-col gap-4">
-          <div className="bg-white p-6 rounded-lg shadow-md border-t-8 border-blue-600">
-            <label className="block text-sm font-black text-blue-900 mb-2 uppercase tracking-tight">Código de Barras</label>
-            <form onSubmit={handleSearchProduct}>
-              <input
-                ref={inputRef}
-                type="text"
-                value={barcode}
-                onChange={(e) => setBarcode(e.target.value)}
-                className="w-full border-2 border-gray-200 rounded-xl p-4 text-4xl font-mono focus:border-blue-600 outline-none bg-gray-50 transition-all"
-                placeholder="0000000000000"
-              />
-            </form>
-          </div>
-
-          <div className="bg-blue-900 text-white p-8 rounded-2xl shadow-2xl flex-1 flex flex-col justify-between relative overflow-hidden">
-            {/* Decoração de fundo */}
-            <div className="absolute top-0 right-0 p-4 opacity-10">
-                <span className="text-9xl font-black">TOTAL</span>
-            </div>
-
-            <div className="relative z-10">
-              <span className="text-blue-300 text-2xl uppercase font-black tracking-tighter">Total a Pagar</span>
-              <div className="text-8xl font-black mt-2 leading-none tracking-tighter">
-                {(total / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-              </div>
-            </div>
-
-            <button
-              disabled={cart.length === 0}
-              onClick={() => setIsPaymentModalOpen(true)}
-              className={`w-full py-6 rounded-2xl text-3xl font-black uppercase transition-all shadow-[0_8px_0_rgb(21,128,61)] active:shadow-none active:translate-y-2 relative z-10 cursor-pointer ${
-                cart.length === 0 ? "bg-gray-700 text-gray-500 cursor-not-allowed shadow-none" : "bg-green-500 text-white hover:bg-green-400"
-              }`}
-            >
-              FINALIZAR (F10)
-            </button>
-          </div>
+        <div className="flex-1 overflow-auto p-2 lg:p-4 scrollbar-thin">
+          <table className="w-full text-left border-collapse">
+            <thead className="sticky top-0 bg-white z-10 shadow-sm">
+              <tr className="border-b text-gray-400 uppercase text-[10px] lg:text-xs font-bold tracking-widest">
+                <th className="py-2 px-1">Item</th>
+                <th className="px-1 text-center w-12 lg:w-20">Qtd</th>
+                <th className="px-1 text-right hidden sm:table-cell w-24">Unit.</th>
+                <th className="px-1 text-right w-20 lg:w-32">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {cart.map((item, index) => (
+                <tr key={index} className="border-b text-sm lg:text-lg font-bold hover:bg-gray-50">
+                  <td className="py-3 px-1 text-blue-900 uppercase leading-tight">
+                    <div className="line-clamp-2">{item.name}</div>
+                    {/* Mostra unitário no mobile abaixo do nome */}
+                    <div className="sm:hidden text-[10px] text-gray-400 font-normal">
+                      Unit: {(item.price / 100).toFixed(2)}
+                    </div>
+                  </td>
+                  <td className="px-1 text-center text-gray-600">{item.quantity}</td>
+                  <td className="px-1 text-right text-gray-500 hidden sm:table-cell">{(item.price / 100).toFixed(2)}</td>
+                  <td className="px-1 text-right text-blue-600 font-black">
+                    {(item.subtotal / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                  </td>
+                </tr>
+              ))}
+              {cart.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="text-center py-10 text-gray-400 text-sm">
+                    Nenhum item lançado
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
 
-      {/* MODAL DE PAGAMENTO */}
+      {/* --- COLUNA DIREITA: AÇÕES E TOTAL --- */}
+      {/* Mobile: Ordem 1 (Fica no topo ou fundo, aqui fixo) | Desktop: Largura 450px */}
+      <div className="w-full lg:w-[450px] flex flex-col gap-2 lg:gap-4 order-1 lg:order-2 shrink-0">
+        
+        {/* Input de Código de Barras */}
+        <div className="bg-white p-3 lg:p-6 rounded-lg shadow-sm border-t-4 border-blue-600">
+          <label className="hidden lg:block text-sm font-black text-blue-900 mb-2 uppercase">Código de Barras</label>
+          <form onSubmit={handleSearchProduct}>
+            <input
+              ref={inputRef}
+              type="text"
+              // inputMode="numeric" ajuda no celular a abrir teclado numérico
+              inputMode="numeric" 
+              value={barcode}
+              onChange={(e) => setBarcode(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg p-3 lg:p-4 text-xl lg:text-4xl font-mono focus:border-blue-600 outline-none bg-gray-50 uppercase placeholder:text-sm lg:placeholder:text-xl"
+              placeholder="Digitar Código..."
+            />
+          </form>
+        </div>
+
+        {/* Painel de Total e Botão Finalizar */}
+        <div className="bg-blue-900 text-white p-4 lg:p-8 rounded-xl shadow-lg flex flex-row lg:flex-col items-center lg:items-stretch justify-between lg:justify-end gap-4 lg:flex-1 relative overflow-hidden">
+           {/* Total Mobile (Esquerda) */}
+           <div className="flex flex-col z-10">
+              <span className="text-blue-300 text-xs lg:text-2xl uppercase font-bold">Total a Pagar</span>
+              <div className="text-4xl lg:text-8xl font-black leading-none tracking-tight">
+                {(total / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+              </div>
+           </div>
+
+            {/* Botão Finalizar */}
+            <button
+              disabled={cart.length === 0}
+              onClick={() => setIsPaymentModalOpen(true)}
+              className={`py-3 px-6 lg:py-6 rounded-xl text-sm lg:text-3xl font-black uppercase transition-all shadow-lg active:scale-95 z-10 ${
+                cart.length === 0 ? "bg-gray-700 text-gray-500 cursor-not-allowed" : "bg-green-500 text-white hover:bg-green-400"
+              }`}
+            >
+              <span className="lg:hidden">Pagar</span>
+              <span className="hidden lg:inline">FINALIZAR (F10)</span>
+            </button>
+        </div>
+      </div>
+
+      {/* --- MODAL DE PAGAMENTO RESPONSIVO --- */}
       {isPaymentModalOpen && (
-        <div className="fixed inset-0 bg-blue-900/40 backdrop-blur-md flex items-center justify-center z-[100] p-4">
-          <div className="bg-white rounded-3xl w-full max-w-3xl overflow-hidden shadow-[0_30px_60px_-15px_rgba(0,0,0,0.5)] flex flex-col border border-gray-200">
-            <div className="p-6 bg-gray-50 border-b flex justify-between items-center">
-              <h2 className="text-2xl font-black text-blue-900 uppercase">Fechamento de Venda</h2>
-              <button onClick={() => setIsPaymentModalOpen(false)} className="bg-gray-200 hover:bg-red-100 hover:text-red-600 p-2 rounded-full w-10 h-10 transition-colors">✕</button>
+        <div className="fixed inset-0 bg-blue-900/60 backdrop-blur-sm flex items-end lg:items-center justify-center z-[100] p-0 lg:p-4">
+          <div className="bg-white rounded-t-3xl lg:rounded-3xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl animate-in slide-in-from-bottom-10">
+            
+            {/* Cabeçalho Modal */}
+            <div className="p-4 lg:p-6 bg-gray-50 border-b flex justify-between items-center rounded-t-3xl">
+              <h2 className="text-lg lg:text-2xl font-black text-blue-900 uppercase">Pagamento</h2>
+              <button onClick={() => setIsPaymentModalOpen(false)} className="bg-gray-200 p-2 rounded-full hover:bg-red-100 text-gray-600">✕</button>
             </div>
 
-            <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-10">
-              <div className="space-y-8">
-                <div>
-                  <p className="text-gray-400 uppercase font-black text-xs mb-1">Total da Venda</p>
-                  <p className="text-5xl font-black text-blue-600">
-                    {(total / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-                  </p>
-                </div>
-
-                <div className="bg-gray-50 p-4 rounded-2xl border-2 border-dashed border-gray-200">
-                  <p className="text-gray-500 uppercase font-bold text-xs mb-2">Valor a Lançar</p>
-                  <div className="flex items-center">
-                    <span className="text-4xl font-black text-blue-900 mr-2">R$</span>
-                    <input
-                      type="number"
-                      step="0.01"
-                      autoFocus
-                      value={paymentInputValue / 100}
-                      onChange={(e) => setPaymentInputValue(e.target.value === "" ? 0 : Math.round(parseFloat(e.target.value) * 100))}
-                      onFocus={(e) => e.target.select()}
-                      className="text-5xl font-black text-blue-900 outline-none w-full bg-transparent"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex gap-6">
-                  <div>
-                    <p className="text-gray-400 uppercase font-black text-[10px]">Restante</p>
-                    <p className={`text-2xl font-black ${remaingBalance > 0 ? "text-red-600" : "text-green-500"}`}>
-                      {(remaingBalance / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+            {/* Corpo Modal (Scrollável no mobile) */}
+            <div className="p-4 lg:p-8 overflow-y-auto">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-10">
+                
+                {/* Coluna Valores */}
+                <div className="space-y-4 lg:space-y-8">
+                  <div className="text-center lg:text-left">
+                    <p className="text-gray-400 uppercase font-bold text-[10px] lg:text-xs">Total Geral</p>
+                    <p className="text-4xl lg:text-5xl font-black text-blue-600">
+                      {(total / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                     </p>
                   </div>
-                  {change > 0 && (
+
+                  <div className="bg-gray-50 p-3 lg:p-4 rounded-xl border-2 border-dashed border-gray-200">
+                    <p className="text-gray-500 uppercase font-bold text-[10px] lg:text-xs mb-1">Valor a Lançar</p>
+                    <div className="flex items-center justify-center lg:justify-start">
+                      <span className="text-2xl lg:text-4xl font-black text-blue-900 mr-2">R$</span>
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        autoFocus
+                        value={paymentInputValue / 100}
+                        onChange={(e) => setPaymentInputValue(e.target.value === "" ? 0 : Math.round(parseFloat(e.target.value) * 100))}
+                        onFocus={(e) => e.target.select()}
+                        className="text-4xl lg:text-5xl font-black text-blue-900 outline-none w-full bg-transparent text-center lg:text-left"
+                      />
+                    </div>
+                  </div>
+                  
+                  {/* Saldos */}
+                  <div className="flex justify-between lg:justify-start lg:gap-6 bg-gray-100 lg:bg-transparent p-3 rounded-lg lg:p-0">
                     <div>
-                      <p className="text-blue-400 uppercase font-black text-[10px]">Troco</p>
-                      <p className="text-2xl font-black text-blue-600">
-                        {(change / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                      <p className="text-gray-500 text-[10px] uppercase font-bold">Falta Pagar</p>
+                      <p className={`text-xl lg:text-2xl font-black ${remaingBalance > 0 ? "text-red-600" : "text-green-500"}`}>
+                        {(remaingBalance / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                       </p>
+                    </div>
+                    {change > 0 && (
+                      <div className="text-right lg:text-left">
+                        <p className="text-blue-500 text-[10px] uppercase font-bold">Troco</p>
+                        <p className="text-xl lg:text-2xl font-black text-blue-600">
+                          {(change / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Botões de Pagamento */}
+                <div className="flex flex-col gap-2 lg:gap-3">
+                  <p className="lg:hidden text-xs font-bold text-gray-400 uppercase text-center mt-2">Selecione a forma:</p>
+                  <div className="grid grid-cols-2 gap-2 lg:flex lg:flex-col">
+                    <button onClick={() => handleAddPayment("DINHEIRO", paymentInputValue)} className="bg-green-100 text-green-800 p-3 lg:p-5 rounded-xl font-bold border border-green-200 hover:bg-green-200 flex justify-between items-center">
+                      <span>💵 Dinheiro</span> <span className="hidden lg:inline text-xs bg-white/50 px-2 rounded">F1</span>
+                    </button>
+                    <button onClick={() => handleAddPayment("DÉBITO", paymentInputValue)} className="bg-blue-100 text-blue-800 p-3 lg:p-5 rounded-xl font-bold border border-blue-200 hover:bg-blue-200 flex justify-between items-center">
+                      <span>💳 Débito</span> <span className="hidden lg:inline text-xs bg-white/50 px-2 rounded">F2</span>
+                    </button>
+                    <button onClick={() => handleAddPayment("CRÉDITO", paymentInputValue)} className="bg-orange-100 text-orange-800 p-3 lg:p-5 rounded-xl font-bold border border-orange-200 hover:bg-orange-200 flex justify-between items-center">
+                      <span>💳 Crédito</span> <span className="hidden lg:inline text-xs bg-white/50 px-2 rounded">F3</span>
+                    </button>
+                    <button onClick={() => handleAddPayment("PIX", paymentInputValue)} className="bg-purple-100 text-purple-800 p-3 lg:p-5 rounded-xl font-bold border border-purple-200 hover:bg-purple-200 flex justify-between items-center">
+                      <span>💠 PIX</span> <span className="hidden lg:inline text-xs bg-white/50 px-2 rounded">F4</span>
+                    </button>
+                  </div>
+
+                  {/* Lista de Pagamentos (Mobile: compacta) */}
+                  {payments.length > 0 && (
+                    <div className="mt-2 bg-gray-50 p-2 rounded-lg border border-gray-100 max-h-24 overflow-y-auto text-xs">
+                      {payments.map((p, i) => (
+                        <div key={i} className="flex justify-between py-1 border-b last:border-0 border-gray-200">
+                          <span>{p.method}</span>
+                          <span className="font-bold">{(p.value / 100).toFixed(2)}</span>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
               </div>
-
-              <div className="flex flex-col gap-3">
-                <button onClick={() => handleAddPayment("DINHEIRO", paymentInputValue)} className="flex justify-between items-center bg-green-600 text-white p-5 rounded-2xl font-black hover:bg-green-700 transition-all transform active:scale-95 cursor-pointer shadow-lg shadow-green-200">
-                  <span>DINHEIRO</span> <span className="text-xs bg-green-800 px-2 py-1 rounded">F1</span>
-                </button>
-                <button onClick={() => handleAddPayment("DÉBITO", paymentInputValue)} className="flex justify-between items-center bg-blue-600 text-white p-5 rounded-2xl font-black hover:bg-blue-700 transition-all transform active:scale-95 cursor-pointer shadow-lg shadow-blue-200">
-                  <span>DÉBITO</span> <span className="text-xs bg-blue-800 px-2 py-1 rounded">F2</span>
-                </button>
-                <button onClick={() => handleAddPayment("CRÉDITO", paymentInputValue)} className="flex justify-between items-center bg-orange-500 text-white p-5 rounded-2xl font-black hover:bg-orange-600 transition-all transform active:scale-95 cursor-pointer shadow-lg shadow-orange-200">
-                  <span>CRÉDITO</span> <span className="text-xs bg-orange-800 px-2 py-1 rounded">F3</span>
-                </button>
-                <button onClick={() => handleAddPayment("PIX", paymentInputValue)} className="flex justify-between items-center bg-purple-600 text-white p-5 rounded-2xl font-black hover:bg-purple-700 transition-all transform active:scale-95 cursor-pointer shadow-lg shadow-purple-200">
-                  <span>PIX</span> <span className="text-xs bg-purple-800 px-2 py-1 rounded">F4</span>
-                </button>
-
-                <div className="mt-4 bg-gray-50 p-4 rounded-2xl flex-1 max-h-40 overflow-y-auto border border-gray-100">
-                  <p className="text-[10px] font-black text-gray-400 uppercase mb-2">Lançamentos</p>
-                  {payments.map((p, index) => (
-                    <div key={index} className="flex justify-between text-sm py-1 border-b border-gray-200 last:border-0">
-                      <span className="font-bold text-gray-700">{p.method}</span>
-                      <span className="font-mono text-blue-600">{(p.value / 100).toFixed(2)}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
             </div>
 
-            <div className="p-8 pt-0">
+            {/* Rodapé Modal (Botão Confirmar) */}
+            <div className="p-4 lg:p-8 bg-white border-t rounded-b-3xl">
               <button
                 disabled={remaingBalance > 0}
                 onClick={finalizarVenda}
-                className={`w-full py-6 rounded-2xl font-black text-2xl tracking-tight transition-all cursor-pointer shadow-xl ${
+                className={`w-full py-4 lg:py-6 rounded-xl font-black text-lg lg:text-2xl uppercase transition-all shadow-lg ${
                   remaingBalance > 0 
-                  ? "bg-gray-100 text-gray-300 cursor-not-allowed shadow-none" 
-                  : "bg-green-500 text-white hover:bg-green-400 hover:-translate-y-1 active:translate-y-0"
+                  ? "bg-gray-100 text-gray-400 cursor-not-allowed shadow-none" 
+                  : "bg-green-600 text-white hover:bg-green-500 active:scale-95"
                 }`}
               >
-                {remaingBalance > 0 ? "AGUARDANDO PAGAMENTO..." : "CONFIRMAR VENDA (ENTER)"}
+                {remaingBalance > 0 ? "Falta Pagar" : "Confirmar Venda"}
               </button>
             </div>
+
           </div>
         </div>
       )}
