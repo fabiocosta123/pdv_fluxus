@@ -1,14 +1,13 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { toast } from 'sonner';
+
 
 export async function GET(request: Request, 
     { params }: { params: Promise<{ code: string }> }
 )
 {
     try {
-        const resolvedParams = await params;
-        const code = resolvedParams.code.trim();
+        const resolvedParams = await params;      
 
         const searchInput = decodeURIComponent(resolvedParams.code).trim();
 

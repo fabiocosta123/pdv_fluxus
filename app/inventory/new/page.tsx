@@ -106,7 +106,7 @@ export default function NewInventoryPage() {
             </label>
             <input
               required
-              type="number"
+              type="text"
               placeholder="Ex: 990 for R$ 9,90"
               className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
               value={price}
