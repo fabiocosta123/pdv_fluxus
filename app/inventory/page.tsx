@@ -232,7 +232,7 @@ export default function InventoryPage() {
                       >
                         {stockNumber} {product.unit}
                       </td>
-                      <td className="px-6 py-4 text-right text-sm font-medium space-x-4">
+                      <td className="px-6 py-4 text-left text-sm font-medium space-x-4">
                         <Link
                           href={`/inventory/edit/${product.id}`}
                           className="text-blue-600 hover:text-blue-900 inline-flex items-center gap-1"

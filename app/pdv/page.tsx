@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { toast } from "sonner";
+import { Trash2, Plus, Minus, AlertTriangle } from "lucide-react";
 
 interface Product {
   id: string;
@@ -33,83 +34,134 @@ export default function PDVPage() {
   const remaingBalance = Math.max(0, total - totalPaid);
   const change = totalPaid > total ? totalPaid - total : 0;
 
-  // Foco automático apenas desktop
-  useEffect(() => {
-    if (!isPaymentModalOpen && window.innerWidth > 768) {
-      inputRef.current?.focus();
-    }
-  }, [isPaymentModalOpen]);
-
-  // Atualiza valor de entrada quando o modal abre ou saldo muda
-  useEffect(() => {
-    if (isPaymentModalOpen) {
-      setPaymentInputValue(remaingBalance);
-    }
-  }, [isPaymentModalOpen, remaingBalance]);
-
-  const addToCart = (product: Product) => {
+  const addToCart = (product: Product, qty: number = 1) => {
     setCart((prev) => {
       const existing = prev.find((item) => item.id === product.id);
+      const newQuantity = existing ? existing.quantity + qty : qty;
+
+      // 1. AVISO DE ESTOQUE (Apenas se a quantidade total no carrinho superar o estoque)
+      if (newQuantity > product.stock) {
+        toast.warning(
+          `Venda acima do estoque (${product.stock} un. em sistema)`,
+          {
+            id: `stock-${product.id}`, // Evita duplicidade de aviso para o mesmo produto
+          }
+        );
+      }
+
+      // 2. MENSAGEM DE SUCESSO ÚNICA
+      toast.success(`${newQuantity}x ${product.name}`, {
+        id: `success-${product.id}`, // Atualiza o mesmo toast se bipar repetidamente
+      });
+
+      // 3. ATUALIZAÇÃO DO ESTADO (Sem travas)
       if (existing) {
         return prev.map((item) =>
           item.id === product.id
             ? {
                 ...item,
-                quantity: item.quantity + 1,
-                subtotal: (item.quantity + 1) * item.price,
+                quantity: newQuantity,
+                subtotal: newQuantity * item.price,
               }
             : item
         );
       }
-      return [...prev, { ...product, quantity: 1, subtotal: product.price }];
+
+      return [
+        ...prev,
+        { ...product, quantity: qty, subtotal: qty * product.price },
+      ];
     });
-    toast.success(`${product.name} adicionado!`);
   };
 
+  const removeFromCart = (productId: string) => {
+    setCart((prev) => prev.filter((item) => item.id !== productId));
+    toast.info("Item removido do carrinho");
+  };
+
+  // busca produto pelo código de barras ou nome
   const handleSearchProduct = async (e?: React.FormEvent) => {
     e?.preventDefault();
-    const currentCode = barcode.trim();
-    if (!currentCode) return;
+    const inputVal = barcode.trim();
+    if (!inputVal) return;
 
-    const loadingId = toast.loading("Buscando produto...");
+    let quantityToLoad = 1;
+    let codeToSearch = inputVal;
 
-    try {
-      const response = await fetch(
-        `/api/products/${encodeURIComponent(currentCode)}`
-      );
-      toast.dismiss(loadingId);
+    // 1. LÓGICA DE BALANÇA (Etiquetas EAN-13 que começam com '2')
+    // Exemplo de etiqueta: 2 00015 00450 7 (2 + 5 dígitos código + 5 dígitos valor + verificador)
+    if (inputVal.length === 13 && inputVal.startsWith("2")) {
+      // Extrai o código do produto (posições 1 a 6) -> "00015"
+      codeToSearch = inputVal.substring(1, 6);
 
-      if (!response.ok) {
-        // MUDANÇA AQUI: Em vez de apenas dar toast.error, chamamos a lógica completa
-        handleAddProduct(null);
+      // Extrai o valor total impresso na etiqueta (posições 6 a 11) -> "00450" (R$ 4,50)
+      const priceFromLabel = parseFloat(inputVal.substring(6, 11)) / 100;
+
+      const loadingId = toast.loading("Processando balança...");
+      try {
+        const response = await fetch(
+          `/api/products/${encodeURIComponent(codeToSearch)}`
+        );
+        toast.dismiss(loadingId);
+        if (!response.ok) throw new Error();
+
+        const product = await response.json();
+        const productUnitPrice = product.price / 100; // Converte preço do BD para decimal
+
+        // Peso = Valor da Etiqueta / Preço por KG do cadastro
+        // Ex: R$ 4,50 / R$ 20,00 o kg = 0.225 kg
+        quantityToLoad = priceFromLabel / productUnitPrice;
+
+        addToCart(product, quantityToLoad);
+        setBarcode("");
+        return; // Finaliza aqui pois já buscou e adicionou
+      } catch {
+        toast.error("Produto da balança não cadastrado");
         setBarcode("");
         return;
       }
+    }
+
+    // 2. LÓGICA DE MULTIPLICADOR (Existente: 5*789...)
+    if (inputVal.includes("*")) {
+      const parts = inputVal.split("*");
+      const qty = parseFloat(parts[0].replace(",", "."));
+      const code = parts[1];
+
+      if (!isNaN(qty) && qty > 0 && code) {
+        quantityToLoad = qty;
+        codeToSearch = code;
+      }
+    }
+
+    // 3. BUSCA COMUM (Código de barras normal ou multiplicador)
+    const loadingId = toast.loading("Buscando...");
+    try {
+      const response = await fetch(
+        `/api/products/${encodeURIComponent(codeToSearch)}`
+      );
+      toast.dismiss(loadingId);
+
+      if (!response.ok) throw new Error();
 
       const product = await response.json();
-
-      // MUDANÇA AQUI: Passamos pela validação de estoque antes de adicionar
-      handleAddProduct(product);
-
+      addToCart(product, quantityToLoad);
       setBarcode("");
-    } catch (error) {
-      toast.dismiss(loadingId);
-      toast.error("Erro na busca");
+    } catch {
+      toast.error("Produto não encontrado");
       setBarcode("");
     }
   };
 
   const handleAddPayment = useCallback((method: string, amount: number) => {
-    if (amount <= 0) {
-      toast.error("Valor inválido");
-      return;
-    }
+    if (amount <= 0) return;
+
     setPayments((prev) => [...prev, { method, value: amount }]);
     toast.info(
       `${method}: ${(amount / 100).toLocaleString("pt-BR", {
         style: "currency",
         currency: "BRL",
-      })}`
+      })} registrado!`
     );
   }, []);
 
@@ -148,46 +200,31 @@ export default function PDVPage() {
       setIsPaymentModalOpen(false);
       setBarcode("");
     } catch (error: any) {
-      console.error("Erro:", error);
       toast.error(`Erro: ${error.message}`, { id: toastId });
     }
   }, [cart, payments, total, totalPaid, change, remaingBalance]);
 
-  // Lógica de Atalhos de Teclado
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "F10" && cart.length > 0 && !isPaymentModalOpen) {
         e.preventDefault();
         setIsPaymentModalOpen(true);
       }
-
       if (isPaymentModalOpen) {
-        if (e.key === "F1") {
+        const maps: Record<string, string> = {
+          F1: "DINHEIRO",
+          F2: "DÉBITO",
+          F3: "CRÉDITO",
+          F4: "PIX",
+        };
+        if (maps[e.key]) {
           e.preventDefault();
-          handleAddPayment("DINHEIRO", paymentInputValue);
+          handleAddPayment(maps[e.key], paymentInputValue);
         }
-        if (e.key === "F2") {
-          e.preventDefault();
-          handleAddPayment("DÉBITO", paymentInputValue);
-        }
-        if (e.key === "F3") {
-          e.preventDefault();
-          handleAddPayment("CRÉDITO", paymentInputValue);
-        }
-        if (e.key === "F4") {
-          e.preventDefault();
-          handleAddPayment("PIX", paymentInputValue);
-        }
-        if (e.key === "Enter" && remaingBalance === 0) {
-          e.preventDefault();
-          finalizarVenda();
-        }
-        if (e.key === "Escape") {
-          setIsPaymentModalOpen(false);
-        }
+        if (e.key === "Enter" && remaingBalance === 0) finalizarVenda();
+        if (e.key === "Escape") setIsPaymentModalOpen(false);
       }
     };
-
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [
@@ -199,35 +236,16 @@ export default function PDVPage() {
     finalizarVenda,
   ]);
 
-  const handleAddProduct = (product: any) => {
-    // Usamos any aqui temporariamente se o Prisma estiver enviando Decimal
-    // CASO 1: Produto não encontrado no banco
-    if (!product) {
-      toast.error("Produto não cadastrado!", {
-        description: "Deseja cadastrar este novo produto agora?",
-        action: {
-          label: "Cadastrar",
-          onClick: () => (window.location.href = "/inventory/new"),
-        },
-      });
-      return;
-    }
+  // Foco automático
+  useEffect(() => {
+    if (!isPaymentModalOpen && window.innerWidth > 768)
+      inputRef.current?.focus();
+  }, [isPaymentModalOpen]);
 
-    // CASO 2: Produto existe mas estoque está zerado
-    // Convertemos para Number para garantir que funcione com Decimal do Prisma
-    if (Number(product.stock) <= 0) {
-      toast.warning(`Estoque zerado para ${product.name}`, {
-        description: "Ajuste o estoque ou continue a venda mesmo assim.",
-        action: {
-          label: "Ajustar Estoque",
-          onClick: () =>
-            (window.location.href = `/inventory/edit/${product.id}`),
-        },
-      });
-    }
+  useEffect(() => {
+    if (isPaymentModalOpen) setPaymentInputValue(remaingBalance);
+  }, [isPaymentModalOpen, remaingBalance]);
 
-    addToCart(product);
-  };
   return (
     <div className="h-[100dvh] bg-gray-100 font-sans overflow-hidden flex flex-col lg:flex-row p-2 lg:p-4 gap-2 lg:gap-4">
       {/* --- COLUNA ESQUERDA: LISTA DE PRODUTOS --- */}
@@ -235,59 +253,85 @@ export default function PDVPage() {
       <div className="flex-1 bg-white rounded-lg shadow-sm flex flex-col overflow-hidden order-2 lg:order-1 h-full">
         <div className="p-3 border-b bg-blue-600 text-white flex justify-between items-center shrink-0">
           <h1 className="text-sm lg:text-xl font-bold italic">🛒 PDV ATIVO</h1>
-          <span className="text-[10px] lg:text-xs bg-blue-800 px-2 py-1 rounded">
-            LIVRE
+          <span className="text-XS lg:text-xs bg-blue-900 px-2 py-1 rounded">
+            CAIXA LIVRE
           </span>
         </div>
 
         <div className="flex-1 overflow-auto p-2 lg:p-4 scrollbar-thin">
-          <table className="w-full text-left border-collapse">
-            <thead className="sticky top-0 bg-white z-10 shadow-sm">
-              <tr className="border-b text-gray-400 uppercase text-[10px] lg:text-xs font-bold tracking-widest">
-                <th className="py-2 px-1">Item</th>
-                <th className="px-1 text-center w-12 lg:w-20">Qtd</th>
-                <th className="px-1 text-right hidden sm:table-cell w-24">
+          <table className="w-full table-fixed">
+            <thead>
+              <tr className="text-[10px] text-gray-400 uppercase font-bold text-left border-b">
+                <th className="w-16 py-2 px-2">Item</th>
+                <th className="w-1/2 px-2">Descrição</th>
+                <th className="w-20 text-center px-2">Qtd</th>
+                <th className="w-32 text-right hidden sm:table-cell px-2">
                   Unit.
                 </th>
-                <th className="px-1 text-right w-20 lg:w-32">Total</th>
+                <th className="w-32 text-right px-2">Total</th>
+                <th className="w-12 text-center"></th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-gray-100">
               {cart.map((item, index) => (
                 <tr
-                  key={index}
-                  className="border-b text-sm lg:text-lg font-bold hover:bg-gray-50"
+                  key={item.id}
+                  className="text-sm lg:text-lg font-bold hover:bg-gray-50 group"
                 >
-                  <td className="py-3 px-1 text-gray-900 uppercase leading-tight">
-                    <div className="line-clamp-2">{item.name}</div>
-                    {/* Mostra unitário no mobile abaixo do nome */}
-                    <div className="sm:hidden text-[10px] text-gray-400 font-normal">
-                      Unit: {(item.price / 100).toFixed(2)}
+                  {/* ITEM + DESCRIÇÃO - Ajustado Alinhamento */}
+                  <td className="py-4 px-2 font-mono text-gray-400">
+                    {String(index + 1).padStart(3, "0")}
+                  </td>
+                  <td className="py-4 px-2 overflow-hidden">
+                    <div className="flex flex-col truncate">
+                      <span className="uppercase text-blue-900 truncate">
+                        {item.name}
+                      </span>
+                      {item.quantity > item.stock && (
+                        <span className="text-[10px] text-red-500 font-bold flex items-center gap-1 mt-1">
+                          <AlertTriangle size={12} /> ESTOQUE: {item.stock}
+                        </span>
+                      )}
                     </div>
                   </td>
-                  <td className="px-1 text-center text-gray-600">
-                    {item.quantity}
+
+                  {/* QUANTIDADE */}
+                  <td className="text-center px-2 text-gray-700 font-mono">
+                    {/* Se for inteiro mostra normal, se for decimal mostra 3 casas */}
+                    {Number.isInteger(item.quantity)
+                      ? item.quantity
+                      : item.quantity.toLocaleString("pt-BR", {
+                          minimumFractionDigits: 3,
+                        })}
                   </td>
-                  <td className="px-1 text-right text-gray-500 hidden sm:table-cell">
-                    {(item.price / 100).toFixed(2)}
-                  </td>
-                  <td className="px-1 text-right text-blue-600 font-black">
-                    {(item.subtotal / 100).toLocaleString("pt-BR", {
-                      minimumFractionDigits: 2,
+
+                  {/* UNITÁRIO -*/}
+                  <td className="text-right hidden sm:table-cell text-gray-500 font-mono">
+                    {(item.price / 100).toLocaleString("pt-BR", {
+                      style: "currency",
+                      currency: "BRL",
                     })}
+                  </td>
+
+                  {/* TOTAL DO ITEM */}
+                  <td className="text-right text-blue-700 font-mono pr-4">
+                    {(item.subtotal / 100).toLocaleString("pt-BR", {
+                      style: "currency",
+                      currency: "BRL",
+                    })}
+                  </td>
+
+                  {/* REMOVER */}
+                  <td className="text-center w-10">
+                    <button
+                      onClick={() => removeFromCart(item.id)}
+                      className="p-2 text-gray-200 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                    >
+                      <Trash2 size={18} />
+                    </button>
                   </td>
                 </tr>
               ))}
-              {cart.length === 0 && (
-                <tr>
-                  <td
-                    colSpan={4}
-                    className="text-center py-10 text-gray-400 text-sm"
-                  >
-                    Nenhum item lançado
-                  </td>
-                </tr>
-              )}
             </tbody>
           </table>
         </div>
@@ -322,7 +366,7 @@ export default function PDVPage() {
             <span className="text-blue-200 text-xs lg:text-2xl uppercase font-bold">
               Total a Pagar
             </span>
-            <div className="text-4xl lg:text-8xl font-black leading-none tracking-tight">
+            <div className="text-4xl lg:text-4xl font-black leading-none tracking-tight">
               {(total / 100).toLocaleString("pt-BR", {
                 style: "currency",
                 currency: "BRL",

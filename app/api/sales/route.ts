@@ -5,9 +5,7 @@ import { SaleStatus } from '@prisma/client';
 export async function POST(request: Request) {
     try {
         const body = await request.json();
-        const { cart, payments, total, totalPaid, change } = body;
-
-        
+        const { cart, payments, total, totalPaid, change } = body;     
 
 
         // inicia a transação
@@ -22,18 +20,16 @@ export async function POST(request: Request) {
             }
 
             for (const item of cart) {
-                const product = await tx.product.findUnique({
+                const productExists = await tx.product.findUnique({
                     where: { id: item.id },
                     select: { stock: true }
                     })
 
-                    if (!product) {
+                    if (!productExists) {
                         throw new Error(`Produto não encontrado: ${item.name}`);
                     }
 
-                if (product.stock < item.quantity) {
-                    throw new Error(`Estoque insuficiente para o produto: ${item.name}`);
-                }
+                
 
                 await tx.product.update({
                     where: { id: item.id },
@@ -82,6 +78,7 @@ export async function POST(request: Request) {
         return NextResponse.json(result, { status: 201 });
 
     } catch (error) {
+        console.error("EERO_VENDA: ", error);
        if (error instanceof Error) {
             return NextResponse.json({ error: error.message }, { status: 400 });
        }
