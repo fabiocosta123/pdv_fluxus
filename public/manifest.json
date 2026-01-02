@@ -1,0 +1,21 @@
+{
+  "name": "PDV Ativo - Fluxus",
+  "short_name": "PDV",
+  "description": "Sistema de PDV Offline de Alta Performance",
+  "start_url": "/pdv",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#2563eb",
+  "icons": [
+    {
+      "src": "/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
