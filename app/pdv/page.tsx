@@ -2,13 +2,13 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { toast } from "sonner";
-import { Trash2, Plus, Minus, AlertTriangle } from "lucide-react";
+import { Trash2, AlertTriangle } from "lucide-react";
 
 interface Product {
   id: string;
   name: string;
   price: number;
-  barcode: string;
+  barCode: string;
   stock: number;
 }
 
@@ -25,8 +25,90 @@ export default function PDVPage() {
     []
   );
   const [paymentInputValue, setPaymentInputValue] = useState(0);
+  const [lastSale, setLastSale] = useState<any>(null);
+  const [pendingCount, setPendingCount] = useState(0);
 
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const syncOfflineSales = useCallback(async () => {
+    const queue = JSON.parse(localStorage.getItem("offlineSales") || "[]");
+    setPendingCount(queue.length);
+
+    if (queue.length === 0) return;
+
+    console.log(`Sincronizando ${queue.length} vendas...`);
+    const remainingSales = [];
+
+    for (const sale of queue) {
+      try {
+        const response = await fetch("/api/sales", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(sale),
+        });
+
+        if (!response.ok) throw new Error();
+      } catch (error) {
+        remainingSales.push(sale);
+      }
+    }
+
+    localStorage.setItem("offlineSales", JSON.stringify(remainingSales));
+    setPendingCount(remainingSales.length);
+
+    if (remainingSales.length === 0 && queue.length > 0) {
+      toast.success("Todas as vendas sincronizadas!");
+    }
+  }, []);
+
+  // Função para salvar offline quando a API falhar
+  const handleOfflineSave = (saleData: any) => {
+    const queue = JSON.parse(localStorage.getItem("offlineSales") || "[]");
+    const newSale = {
+      ...saleData,
+      idTemporario: `OFF-${Date.now()}`,
+      isOffline: true,
+    };
+    queue.push(newSale);
+    localStorage.setItem("offlineSales", JSON.stringify(queue));
+    setPendingCount(queue.length);
+    return newSale;
+  };
+
+  // sincroniza venda (roda ao abrir a pagina)
+  const syncProductsToLocal = useCallback(async () => {
+    try {
+      const response = await fetch("/api/products");
+      if (response.ok) {
+        const products = await response.json();
+        localStorage.setItem("localCatalog", JSON.stringify(products));
+      }
+    } catch (error) {
+      console.log("Modo Offline: Usando catálogo local pré-existente.");
+    }
+  }, []);
+
+  //efeitos de monitoramento
+
+  useEffect(() => {
+    // Sincroniza vendas e catálogo ao iniciar
+    syncOfflineSales();
+    syncProductsToLocal();
+
+    const interval = setInterval(syncOfflineSales, 60000);
+
+    const handleOnline = () => {
+      toast.success("Conexão restabelecida! Sincronizando...");
+      syncOfflineSales();
+      syncProductsToLocal();
+    };
+
+    window.addEventListener("online", handleOnline);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("online", handleOnline);
+    };
+  }, [syncOfflineSales, syncProductsToLocal]);
 
   // Totais calculados
   const total = cart.reduce((acc, item) => acc + item.subtotal, 0);
@@ -34,27 +116,24 @@ export default function PDVPage() {
   const remaingBalance = Math.max(0, total - totalPaid);
   const change = totalPaid > total ? totalPaid - total : 0;
 
+  // adiciona ao carrinho
   const addToCart = (product: Product, qty: number = 1) => {
     setCart((prev) => {
       const existing = prev.find((item) => item.id === product.id);
       const newQuantity = existing ? existing.quantity + qty : qty;
 
-      // 1. AVISO DE ESTOQUE (Apenas se a quantidade total no carrinho superar o estoque)
+      // AVISO DE ESTOQUE (Apenas se a quantidade total no carrinho superar o estoque)
       if (newQuantity > product.stock) {
-        toast.warning(
-          `Venda acima do estoque (${product.stock} un. em sistema)`,
-          {
-            id: `stock-${product.id}`, // Evita duplicidade de aviso para o mesmo produto
-          }
-        );
+        toast.warning(`Estoque baixo: ${product.stock} un.`, {
+          id: `stock-${product.id}`,
+        });
       }
 
-      // 2. MENSAGEM DE SUCESSO ÚNICA
       toast.success(`${newQuantity}x ${product.name}`, {
-        id: `success-${product.id}`, // Atualiza o mesmo toast se bipar repetidamente
+        id: `success-${product.id}`,
       });
 
-      // 3. ATUALIZAÇÃO DO ESTADO (Sem travas)
+      //ATUALIZAÇÃO DO ESTADO
       if (existing) {
         return prev.map((item) =>
           item.id === product.id
@@ -74,9 +153,24 @@ export default function PDVPage() {
     });
   };
 
-  const removeFromCart = (productId: string) => {
-    setCart((prev) => prev.filter((item) => item.id !== productId));
-    toast.info("Item removido do carrinho");
+  // remove ultimo item
+  const removeLastItem = useCallback(() => {
+    if (cart.length === 0) return;
+    setCart((prev) => {
+      const newCart = [...prev];
+      const removed = newCart.pop();
+      toast.info(`Item removido: ${removed?.name}`, {
+        icon: "🗑️",
+        style: { borderRadius: "10px", background: "#333", color: "#fff" },
+      });
+      return newCart;
+    });
+  }, [cart.length]);
+
+  // remove item específico
+  const removeFromCart = (id: string) => {
+    setCart((prev) => prev.filter((item) => item.id !== id));
+    toast.info("Item removido", { icon: "🗑️" });
   };
 
   // busca produto pelo código de barras ou nome
@@ -87,71 +181,110 @@ export default function PDVPage() {
 
     let quantityToLoad = 1;
     let codeToSearch = inputVal;
+    let isScaleLabel = false;
+    let priceFromLabel = 0;
 
-    // 1. LÓGICA DE BALANÇA (Etiquetas EAN-13 que começam com '2')
-    // Exemplo de etiqueta: 2 00015 00450 7 (2 + 5 dígitos código + 5 dígitos valor + verificador)
+    // identifica tipo de entrada
     if (inputVal.length === 13 && inputVal.startsWith("2")) {
-      // Extrai o código do produto (posições 1 a 6) -> "00015"
+      isScaleLabel = true;
       codeToSearch = inputVal.substring(1, 6);
-
-      // Extrai o valor total impresso na etiqueta (posições 6 a 11) -> "00450" (R$ 4,50)
-      const priceFromLabel = parseFloat(inputVal.substring(6, 11)) / 100;
-
-      const loadingId = toast.loading("Processando balança...");
-      try {
-        const response = await fetch(
-          `/api/products/${encodeURIComponent(codeToSearch)}`
-        );
-        toast.dismiss(loadingId);
-        if (!response.ok) throw new Error();
-
-        const product = await response.json();
-        const productUnitPrice = product.price / 100; // Converte preço do BD para decimal
-
-        // Peso = Valor da Etiqueta / Preço por KG do cadastro
-        // Ex: R$ 4,50 / R$ 20,00 o kg = 0.225 kg
-        quantityToLoad = priceFromLabel / productUnitPrice;
-
-        addToCart(product, quantityToLoad);
-        setBarcode("");
-        return; // Finaliza aqui pois já buscou e adicionou
-      } catch {
-        toast.error("Produto da balança não cadastrado");
-        setBarcode("");
-        return;
-      }
-    }
-
-    // 2. LÓGICA DE MULTIPLICADOR (Existente: 5*789...)
-    if (inputVal.includes("*")) {
+      priceFromLabel = parseFloat(inputVal.substring(6, 11)) / 100;
+    } else if (inputVal.includes("*")) {
       const parts = inputVal.split("*");
-      const qty = parseFloat(parts[0].replace(",", "."));
-      const code = parts[1];
-
-      if (!isNaN(qty) && qty > 0 && code) {
-        quantityToLoad = qty;
-        codeToSearch = code;
-      }
+      quantityToLoad = parseFloat(parts[0].replace(",", ".")) || 1;
+      codeToSearch = parts[1];
     }
 
-    // 3. BUSCA COMUM (Código de barras normal ou multiplicador)
-    const loadingId = toast.loading("Buscando...");
+    if (!codeToSearch) return;
+
+    // busca no localStorage offline
+    const localCatalog = JSON.parse(
+      localStorage.getItem("localCatalog") || "[]"
+    );
+    const product = localCatalog.find(
+      (p: Product) => p.barCode === codeToSearch || p.id === codeToSearch
+    );
+
+    if (product) {
+      if (isScaleLabel) {
+        const productUnitPrice = product.price / 100;
+        quantityToLoad = priceFromLabel / productUnitPrice;
+      }
+      addToCart(product, quantityToLoad);
+      setBarcode("");
+      return;
+    }
+
+    // busca na api se não achou no cache ou se tem internet
     try {
       const response = await fetch(
         `/api/products/${encodeURIComponent(codeToSearch)}`
       );
-      toast.dismiss(loadingId);
+      if (response.ok) {
+        const apiProduct = await response.json();
 
-      if (!response.ok) throw new Error();
+        if (isScaleLabel) {
+          const productUnitPrice = apiProduct.price / 100;
+          quantityToLoad = priceFromLabel / productUnitPrice;
+        }
 
-      const product = await response.json();
-      addToCart(product, quantityToLoad);
-      setBarcode("");
-    } catch {
-      toast.error("Produto não encontrado");
-      setBarcode("");
+        addToCart(apiProduct, quantityToLoad);
+      } else {
+        toast.error("Produto não encontrado");
+      }
+    } catch (error) {
+      toast.error("Offline: Produto não encontrado no catálogo local");
     }
+
+    setBarcode("");
   };
+
+  const finalizarVenda = useCallback(async () => {
+    if (remaingBalance > 0) return;
+
+    const toastId = "venda-processando";
+    toast.loading("Processando venda...", { id: toastId });
+
+    const saleDate = new Date().toISOString();
+    const saleData = {
+      cart,
+      payments,
+      total,
+      totalPaid,
+      change,
+      createdAt: saleDate,
+    };
+
+    try {
+      const response = await fetch("/api/sales", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(saleData),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setLastSale({ id: data.id, ...saleData, date: saleDate });
+        toast.success("Venda online realizada!", { id: toastId });
+      } else {
+        throw new Error();
+      }
+    } catch (error) {
+      const vendaOff = handleOfflineSave(saleData);
+      setLastSale({ id: vendaOff.idTemporario, ...saleData, date: saleDate });
+      toast.warning("Venda salva no notebook (Offline)!", { id: toastId });
+    } finally {
+      // Pequeno delay para o React renderizar o conteúdo do cupom escondido
+      setTimeout(() => {
+        window.print();
+        // Limpeza após o comando de impressão ser enviado
+        setCart([]);
+        setPayments([]);
+        setIsPaymentModalOpen(false);
+        setBarcode("");
+      }, 300);
+    }
+  }, [cart, payments, total, totalPaid, change, remaingBalance]);
 
   const handleAddPayment = useCallback((method: string, amount: number) => {
     if (amount <= 0) return;
@@ -165,75 +298,70 @@ export default function PDVPage() {
     );
   }, []);
 
-  const finalizarVenda = useCallback(async () => {
-    if (remaingBalance > 0) {
-      toast.error("Ainda restam valores a pagar!");
-      return;
-    }
+  // Monitor do Navegador
+  useEffect(() => {
+    // 1. Tenta sincronizar ao abrir o sistema
+    syncOfflineSales();
 
-    const toastId = "venda-processando";
-    toast.loading("Processando...", { id: toastId });
+    // 2. Escuta quando a internet volta
+    const handleOnline = () => {
+      toast.success("Conexão restabelecida!");
+      syncOfflineSales();
+    };
 
-    try {
-      const response = await fetch("/api/sales", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          cart,
-          payments,
-          total,
-          totalPaid,
-          change,
-        }),
-      });
+    window.addEventListener("online", handleOnline);
+    return () => window.removeEventListener("online", handleOnline);
+  }, [syncOfflineSales]);
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Erro ao salvar");
+  // Sincroniza catálogo de produtos para uso offline
+  useEffect(() => {
+    const syncCatalog = async () => {
+      try {
+        const response = await fetch("/api/products");
+        if (response.ok) {
+          const data = await response.json();
+          // Salva uma cópia de segurança para o modo offline
+          localStorage.setItem("localCatalog", JSON.stringify(data));
+          console.log("Catálogo sincronizado para uso offline.");
+        }
+      } catch (error) {
+        console.log("Modo Offline: Não foi possível atualizar o catálogo.");
       }
+    };
 
-      toast.success("Venda realizada!", { id: toastId });
+    syncCatalog();
+  }, []);
 
-      setCart([]);
-      setPayments([]);
-      setIsPaymentModalOpen(false);
-      setBarcode("");
-    } catch (error: any) {
-      toast.error(`Erro: ${error.message}`, { id: toastId });
-    }
-  }, [cart, payments, total, totalPaid, change, remaingBalance]);
-
+  // atalhos teclado
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "F10" && cart.length > 0 && !isPaymentModalOpen) {
-        e.preventDefault();
-        setIsPaymentModalOpen(true);
-      }
+      if (["F1", "F8", "F10", "Delete"].includes(e.key)) e.preventDefault();
+
       if (isPaymentModalOpen) {
-        const maps: Record<string, string> = {
-          F1: "DINHEIRO",
-          F2: "DÉBITO",
-          F3: "CRÉDITO",
-          F4: "PIX",
-        };
-        if (maps[e.key]) {
-          e.preventDefault();
-          handleAddPayment(maps[e.key], paymentInputValue);
-        }
-        if (e.key === "Enter" && remaingBalance === 0) finalizarVenda();
         if (e.key === "Escape") setIsPaymentModalOpen(false);
+        if (e.key === "Enter" && remaingBalance === 0) finalizarVenda();
+        if (e.key === "F1") handleAddPayment("DINHEIRO", paymentInputValue);
+        if (e.key === "F2") handleAddPayment("DÉBITO", paymentInputValue);
+        if (e.key === "F3") {
+          e.preventDefault()
+          handleAddPayment("CRÉDITO", paymentInputValue);
+        }
+        if (e.key === "F4") handleAddPayment("PIX", paymentInputValue);
+      } else {
+        if (e.key === "F10" && cart.length > 0) setIsPaymentModalOpen(true);
+        if (e.key === "Delete") removeLastItem();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [
     isPaymentModalOpen,
-    cart.length,
+    cart,
     paymentInputValue,
     remaingBalance,
     handleAddPayment,
     finalizarVenda,
+    removeLastItem,
   ]);
 
   // Foco automático
@@ -269,7 +397,7 @@ export default function PDVPage() {
                   Unit.
                 </th>
                 <th className="w-32 text-right px-2">Total</th>
-                <th className="w-12 text-center"></th>
+                <th className="w-12 text-center lg:hidden"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -322,7 +450,7 @@ export default function PDVPage() {
                   </td>
 
                   {/* REMOVER */}
-                  <td className="text-center w-10">
+                  <td className="text-center w-10 lg:hidden">
                     <button
                       onClick={() => removeFromCart(item.id)}
                       className="p-2 text-gray-200 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
@@ -436,15 +564,28 @@ export default function PDVPage() {
                         type="number"
                         inputMode="decimal"
                         autoFocus
-                        value={paymentInputValue / 100}
-                        onChange={(e) =>
-                          setPaymentInputValue(
-                            e.target.value === ""
-                              ? 0
-                              : Math.round(parseFloat(e.target.value) * 100)
-                          )
-                        }
+                        // Usamos step para evitar avisos de validação de decimais do navegador
+                        step="0.01"
+                        value={(paymentInputValue / 100).toFixed(2)}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === "") {
+                            setPaymentInputValue(0);
+                          } else {
+                            // Convertemos para centavos imediatamente para evitar erros de ponto flutuante
+                            setPaymentInputValue(
+                              Math.round(parseFloat(val) * 100)
+                            );
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          // Atalho: Enter no valor de pagamento adiciona como DINHEIRO por padrão
+                          if (e.key === "Enter" && paymentInputValue > 0) {
+                            handleAddPayment("DINHEIRO", paymentInputValue);
+                          }
+                        }}
                         onFocus={(e) => e.target.select()}
+                        onBlur={() => { if(!paymentInputValue) setPaymentInputValue(0) }}
                         className="text-4xl lg:text-5xl font-black text-gray-900 outline-none w-full bg-transparent text-center lg:text-left"
                       />
                     </div>
@@ -568,6 +709,91 @@ export default function PDVPage() {
               >
                 {remaingBalance > 0 ? "Falta Pagar" : "Confirmar Venda"}
               </button>
+            </div>
+
+            {/* COMPONENTE DE IMPRESSÃO */}
+            {/* COMPONENTE DE IMPRESSÃO - Visível apenas para a impressora */}
+            <div
+              id="receipt-print"
+              className="hidden print:block font-mono text-[12px] leading-tight w-full"
+            >
+              {lastSale && (
+                <div className="p-0">
+                  <div className="text-center mb-2 uppercase">
+                    <h2 className="font-bold text-[14px]">Fluxus</h2>
+                    <p>CNPJ: 00.000.000/0001-00</p>
+                    <p className="text-[10px]">Rua das Flores, 123 - Centro</p>
+                    <p>--------------------------------</p>
+                    <p className="font-bold">CUPOM NÃO FISCAL</p>
+                    <p>--------------------------------</p>
+                  </div>
+
+                  <div className="mb-2">
+                    <p>
+                      DATA: {new Date(lastSale.date).toLocaleString("pt-BR")}
+                    </p>
+                    <p>VENDA: #{String(lastSale.id).padStart(6, "0")}</p>
+                  </div>
+
+                  <table className="w-full mb-2 border-collapse">
+                    <thead>
+                      <tr className="border-b border-black">
+                        <th className="text-left w-[60%]">DESCRIÇÃO</th>
+                        <th className="text-right">QTDxUN</th>
+                        <th className="text-right">TOTAL</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {lastSale.cart.map((item: any, index: number) => (
+                        <tr
+                          key={index}
+                          className="border-b border-dotted border-black/20"
+                        >
+                          <td className="py-1 uppercase">
+                            {String(index + 1).padStart(3, "0")}{" "}
+                            {item.name.substring(0, 18)}
+                          </td>
+                          <td className="text-right">
+                            {item.quantity}x{(item.price / 100).toFixed(2)}
+                          </td>
+                          <td className="text-right font-bold">
+                            {(item.subtotal / 100).toFixed(2)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+
+                  <div className="border-t border-black pt-1 space-y-1">
+                    <div className="flex justify-between font-bold text-[14px]">
+                      <span>TOTAL:</span>
+                      <span>
+                        {(lastSale.total / 100).toLocaleString("pt-BR", {
+                          style: "currency",
+                          currency: "BRL",
+                        })}
+                      </span>
+                    </div>
+                    {lastSale.payments.map((p: any, i: number) => (
+                      <div key={i} className="flex justify-between text-[11px]">
+                        <span>{p.method}:</span>
+                        <span>{(p.value / 100).toFixed(2)}</span>
+                      </div>
+                    ))}
+                    {lastSale.change > 0 && (
+                      <div className="flex justify-between font-bold border-t border-dotted border-black pt-1">
+                        <span>TROCO:</span>
+                        <span>{(lastSale.change / 100).toFixed(2)}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="text-center mt-4 uppercase text-[10px]">
+                    <p>Obrigado pela preferência!</p>
+                    <p>Volte Sempre</p>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
