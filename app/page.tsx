@@ -29,7 +29,7 @@ export default function HomePage() {
       description: "Histórico de fechamentos",
       icon: <BarChart3 className="w-8 h-8" />,
       color: "bg-purple-600",
-      path: "/reports/cashier",
+      path: "/report/cashier",
       status: "active"
     },
     {
