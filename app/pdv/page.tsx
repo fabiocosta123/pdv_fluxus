@@ -8,6 +8,7 @@ import { CartTable } from "./components/CartTable";
 import { PaymentModal } from "./components/PaymentModal";
 import { Receipt } from "./components/Receipt";
 import { OpenCashierModal } from "./components/OpenCashierModal";
+import { ArrowLeft } from "lucide-react";
 
 interface Product {
   id: string;
@@ -350,7 +351,7 @@ export default function PDVPage() {
                 label: "NÃO",
                 onClick: () => toast.dismiss(),
               },
-              duration: 10000, 
+              duration: 10000,
             });
           }
           break;
@@ -685,9 +686,30 @@ export default function PDVPage() {
 
   return (
     <>
+     
+      <div className="flex items-center gap-4">
+        {/* Botão de Voltar Inteligente */}
+        <button
+          onClick={() => {
+            if (cart.length > 0) {
+              toast.error("Cancele a venda atual antes de sair!");
+            } else {
+              router.push("/");
+            }
+          }}
+          className="p-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-500 transition-all group"
+          title="Voltar ao Menu"
+        >
+          <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
+        </button>
+
+        <h1 className="text-xl font-black text-gray-800 tracking-tighter uppercase">
+          Frente de Caixa
+        </h1>
+      </div>
       {/* Se o caixa não estiver aberto, mostra apenas o modal de abertura */}
       {!isCashierOpen && (
-        <OpenCashierModal isOpen={true} onOpen={handleOpenCashier} />
+        <OpenCashierModal isOpen={true} onOpen={handleOpenCashier} onCancel={() => router.push("/")} />
       )}
       <div className="h-[100dvh] bg-gray-100 font-sans overflow-hidden flex flex-col lg:flex-row p-2 lg:p-4 gap-2 lg:gap-4">
         {/* COLUNA ESQUERDA: LISTA DE PRODUTOS */}
@@ -861,10 +883,7 @@ export default function PDVPage() {
 
         {/* Área de Impressão do Fechamento (Só renderiza se o summary existir) */}
         {cashierSummary && (
-          <div
-            id="printable-area"
-            className="hidden print:block"
-          >
+          <div id="printable-area" className="hidden print:block">
             <div className="text-center border-b-2 border-black pb-2 mb-2">
               <h2 className="text-xl font-bold uppercase">
                 Resumo de Fechamento

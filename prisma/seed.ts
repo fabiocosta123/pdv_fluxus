@@ -3,11 +3,11 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
 import 'dotenv/config';
 
-// 1. Criamos a conexão com o Neon
+// Cria a conexão com o Neon
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const adapter = new PrismaPg(pool);
 
-// 2. Passamos o adaptador para o cliente (isso resolve o erro de construtor vazio)
+// Passa o adaptador para o cliente 
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
