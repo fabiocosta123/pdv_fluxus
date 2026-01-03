@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { CashierModal } from "./components/CashierModal";
 import { CartTable } from "./components/CartTable";
@@ -22,6 +23,7 @@ interface CartItem extends Product {
 }
 
 export default function PDVPage() {
+  const router = useRouter();
   const [barcode, setBarcode] = useState("");
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
@@ -41,6 +43,11 @@ export default function PDVPage() {
   const [isCashierOpen, setIsCashierOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [searchResults, setSearchResults] = useState<Product[]>([]);
+
+  const [cashierSummary, setCashierSummary] = useState<any>(null);
+  const [countedValues, setCountedValues] = useState<{ [key: string]: number }>(
+    {}
+  );
 
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -98,6 +105,58 @@ export default function PDVPage() {
     );
   }, []);
 
+  // fechamento de caixa
+  const getCashierSummary = useCallback(() => {
+    // valor de abertura
+    const openingValue = Number(
+      localStorage.getItem("cashier_opening_value") || 0
+    );
+
+    //histórico de movimentações (Aportes e Sangrias)
+    const history = JSON.parse(localStorage.getItem("cashier_history") || "[]");
+    const movements = history.reduce(
+      (acc: any, curr: any) => {
+        if (curr.type === "APORTE") acc.totalAporte += curr.value;
+        if (curr.type === "SANGRIA") acc.totalSangria += curr.value;
+        return acc;
+      },
+      { totalAporte: 0, totalSangria: 0 }
+    );
+
+    // pega vendas do localStorage
+    const turnSales = JSON.parse(
+      localStorage.getItem("current_turn_sales") || "[]"
+    );
+
+    const salesByMethod = turnSales.reduce((acc: any, sale: any) => {
+      sale.payments.forEach((p: any) => {
+        acc[p.method] = (acc[p.method] || 0) + p.value;
+      });
+      return acc;
+    }, {});
+
+    const totalSold = Object.values(salesByMethod).reduce(
+      (a: any, b: any) => a + b,
+      0
+    ) as number;
+
+    // Abertura + Vendas em Dinheiro + Aportes - Sangrias
+    const moneyExpected =
+      openingValue +
+      (salesByMethod["DINHEIRO"] || 0) +
+      movements.totalAporte -
+      movements.totalSangria;
+
+    return {
+      openingValue,
+      ...movements,
+      salesByMethod,
+      totalSold,
+      moneyExpected,
+    };
+  }, []);
+
+  // Finaliza venda
   const finalizarVenda = useCallback(async () => {
     if (remaingBalance > 0) return;
 
@@ -125,6 +184,15 @@ export default function PDVPage() {
         const data = await response.json();
         setLastSale({ id: data.id, ...saleData, date: saleDate });
         toast.success("Venda online realizada!", { id: toastId });
+
+        const currentTurnSales = JSON.parse(
+          localStorage.getItem("current_turn_sales") || "[]"
+        );
+        currentTurnSales.push(saleData);
+        localStorage.setItem(
+          "current_turn_sales",
+          JSON.stringify(currentTurnSales)
+        );
       } else {
         throw new Error();
       }
@@ -133,7 +201,7 @@ export default function PDVPage() {
       setLastSale({ id: vendaOff.idTemporario, ...saleData, date: saleDate });
       toast.warning("Venda salva no notebook (Offline)!", { id: toastId });
     } finally {
-      // Pequeno delay para o React renderizar o conteúdo do cupom escondido
+      // delay para o React renderizar o conteúdo do cupom escondido
       setTimeout(() => {
         window.print();
         // Limpeza após o comando de impressão ser enviado
@@ -145,7 +213,7 @@ export default function PDVPage() {
     }
   }, [cart, payments, total, totalPaid, change, remaingBalance]);
 
-    // remove ultimo item
+  // remove ultimo item
   const removeLastItem = useCallback(() => {
     if (cart.length === 0) return;
     setCart((prev) => {
@@ -159,72 +227,160 @@ export default function PDVPage() {
     });
   }, [cart.length]);
 
+  // compara o que foi digitado com o que tem em caixa
+  const handleFinalCashierProcess = useCallback(() => {
+    const summary = getCashierSummary();
+    // Calcula as diferenças
+    const differences = {
+      DINHEIRO: (countedValues["DINHEIRO"] || 0) - summary.moneyExpected,
+      DEBITO:
+        (countedValues["DÉBITO"] || 0) - (summary.salesByMethod["DÉBITO"] || 0),
+      CREDITO:
+        (countedValues["CRÉDITO"] || 0) -
+        (summary.salesByMethod["CRÉDITO"] || 0),
+      PIX: (countedValues["PIX"] || 0) - (summary.salesByMethod["PIX"] || 0),
+    };
+
+    const finalReport = {
+      ...summary,
+      countedValues,
+      differences,
+      closedAt: new Date().toISOString(),
+    };
+
+    // seta o estado para o componente de impressão ler os dados
+    setCashierSummary(finalReport);
+
+    // Salva no histórico de fechamentos
+    const closeHistory = JSON.parse(
+      localStorage.getItem("closing_history") || "[]"
+    );
+    closeHistory.push(finalReport);
+    localStorage.setItem("closing_history", JSON.stringify(closeHistory));
+
+    toast.success("Caixa fechado! Imprimindo resumo...");
+
+    // Aguarda o React atualizar o DOM com o resumo antes de imprimir
+    setTimeout(() => {
+      window.print();
+
+      // Limpa os dados do turno atual para o próximo dia
+      localStorage.removeItem("cashier_status");
+      localStorage.removeItem("current_turn_sales");
+      localStorage.removeItem("cashier_opening_value");
+      localStorage.removeItem("cashier_history");
+
+      router.push("/");
+    }, 1000);
+  }, [countedValues, getCashierSummary]);
+
   // atalhos teclado com travas de segurança
   const handleShortcuts = useCallback(
-  (key: string) => {
-    //SE O MODAL DE PAGAMENTO ESTIVER ABERTO
-    if (isPaymentModalOpen) {
-      switch (key) {
-        case "F1": handleAddPayment("DINHEIRO", paymentInputValue); break;
-        case "F2": handleAddPayment("DÉBITO", paymentInputValue); break;
-        case "F3": handleAddPayment("CRÉDITO", paymentInputValue); break;
-        case "F4": handleAddPayment("PIX", paymentInputValue); break;
-        case "Escape": setIsPaymentModalOpen(false); break;
-        case "Enter": if (remaingBalance === 0) finalizarVenda(); break;
-      }
-      return; // Para a execução aqui se o modal estiver aberto
-    }
-
-    //SE O MODAL DE CONSULTA (F1) ESTIVER ABERTO
-    if (isProductSearchOpen) {
-      if (key === "Escape") {
-        setIsProductSearchOpen(false);
-        setSearchTerm("");
-        setSearchResults([]);
-      }
-      return;
-    }
-
-    // TELA DE VENDA NORMAL
-    const isCartEmpty = cart.length === 0;
-
-    switch (key) {
-      case "F1": setIsProductSearchOpen(true); break;
-      case "F4": 
-        if (isCartEmpty) { setModalType("SANGRIA"); setIsCashModalOpen(true); } 
-        else { toast.error("Finalize a venda primeiro"); }
-        break;
-      case "F5": 
-        if (isCartEmpty) { setModalType("APORTE"); setIsCashModalOpen(true); } 
-        else { toast.error("Finalize a venda primeiro"); }
-        break;
-      case "F8": // Cancelar Venda
-        if (!isCartEmpty) {
-          if (confirm("Deseja realmente cancelar toda a venda?")) {
-            setCart([]);
-            setPayments([]);
-            toast.info("Venda cancelada");
-          }
+    (key: string) => {
+      //SE O MODAL DE PAGAMENTO ESTIVER ABERTO
+      if (isPaymentModalOpen) {
+        switch (key) {
+          case "F1":
+            handleAddPayment("DINHEIRO", paymentInputValue);
+            break;
+          case "F2":
+            handleAddPayment("DÉBITO", paymentInputValue);
+            break;
+          case "F3":
+            handleAddPayment("CRÉDITO", paymentInputValue);
+            break;
+          case "F4":
+            handleAddPayment("PIX", paymentInputValue);
+            break;
+          case "Escape":
+            setIsPaymentModalOpen(false);
+            break;
+          case "Enter":
+            if (remaingBalance === 0) finalizarVenda();
+            break;
         }
-        break;
-      case "F9":
-        if (isCartEmpty) { setModalType("FECHAMENTO"); setIsCashModalOpen(true); } 
-        else { toast.error("Finalize a venda primeiro"); }
-        break;
-      case "F10":
-        if (!isCartEmpty) setIsPaymentModalOpen(true);
-        break;
-      case "Delete":
-        removeLastItem();
-        break;
-    }
-  },
-  [
-    isPaymentModalOpen, isProductSearchOpen, cart.length, 
-    paymentInputValue, remaingBalance, handleAddPayment, 
-    finalizarVenda, removeLastItem
-  ]
-);
+        return; // Para a execução aqui se o modal estiver aberto
+      }
+
+      //SE O MODAL DE CONSULTA (F1) ESTIVER ABERTO
+      if (isProductSearchOpen) {
+        if (key === "Escape") {
+          setIsProductSearchOpen(false);
+          setSearchTerm("");
+          setSearchResults([]);
+        }
+        return;
+      }
+
+      // TELA DE VENDA NORMAL
+      const isCartEmpty = cart.length === 0;
+
+      switch (key) {
+        case "F1":
+          setIsProductSearchOpen(true);
+          break;
+        case "F4":
+          if (isCartEmpty) {
+            setModalType("SANGRIA");
+            setIsCashModalOpen(true);
+          } else {
+            toast.error("Finalize a venda primeiro");
+          }
+          break;
+        case "F5":
+          if (isCartEmpty) {
+            setModalType("APORTE");
+            setIsCashModalOpen(true);
+          } else {
+            toast.error("Finalize a venda primeiro");
+          }
+          break;
+        case "F8": // Cancelar Venda
+          if (!isCartEmpty) {
+            toast("Deseja realmente cancelar toda a venda?", {
+              action: {
+                label: "SIM, CANCELAR",
+                onClick: () => {
+                  setCart([]);
+                  setPayments([]);
+                  toast.success("Venda cancelada com sucesso!");
+                },
+              },
+              cancel: {
+                label: "NÃO",
+                onClick: () => toast.dismiss(),
+              },
+              duration: 10000, 
+            });
+          }
+          break;
+        case "F9":
+          if (isCartEmpty) {
+            setModalType("FECHAMENTO");
+            setIsCashModalOpen(true);
+          } else {
+            toast.error("Finalize a venda primeiro");
+          }
+          break;
+        case "F10":
+          if (!isCartEmpty) setIsPaymentModalOpen(true);
+          break;
+        case "Delete":
+          removeLastItem();
+          break;
+      }
+    },
+    [
+      isPaymentModalOpen,
+      isProductSearchOpen,
+      cart.length,
+      paymentInputValue,
+      remaingBalance,
+      handleAddPayment,
+      finalizarVenda,
+      removeLastItem,
+    ]
+  );
 
   const syncOfflineSales = useCallback(async () => {
     const queue = JSON.parse(localStorage.getItem("offlineSales") || "[]");
@@ -285,7 +441,6 @@ export default function PDVPage() {
   }, []);
 
   //efeitos de monitoramento
-
   useEffect(() => {
     // Sincroniza vendas e catálogo ao iniciar
     syncOfflineSales();
@@ -342,8 +497,6 @@ export default function PDVPage() {
       ];
     });
   };
-
-
 
   // remove item específico
   const removeFromCart = (id: string) => {
@@ -416,9 +569,6 @@ export default function PDVPage() {
 
     setBarcode("");
   };
-  
-
-  
 
   // Monitor do Navegador
   useEffect(() => {
@@ -455,7 +605,6 @@ export default function PDVPage() {
   }, []);
 
   // atalhos teclado
- 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const blockedKeys = ["F1", "F2", "F3", "F4", "F5", "F8", "F9", "F10"];
@@ -710,6 +859,95 @@ export default function PDVPage() {
         {/* Componente de Impressão Invisível */}
         <Receipt lastSale={lastSale} />
 
+        {/* Área de Impressão do Fechamento (Só renderiza se o summary existir) */}
+        {cashierSummary && (
+          <div
+            id="printable-area"
+            className="hidden print:block"
+          >
+            <div className="text-center border-b-2 border-black pb-2 mb-2">
+              <h2 className="text-xl font-bold uppercase">
+                Resumo de Fechamento
+              </h2>
+              <p className="text-sm">
+                {new Date(cashierSummary.closedAt).toLocaleString()}
+              </p>
+            </div>
+
+            <div className="space-y-1">
+              {Object.entries(cashierSummary.salesByMethod).map(
+                ([method, value]: any) => (
+                  <div
+                    key={method}
+                    className="flex justify-between font-mono text-sm"
+                  >
+                    <span>{method}:</span>
+                    <span>
+                      {(value / 100).toLocaleString("pt-BR", {
+                        style: "currency",
+                        currency: "BRL",
+                      })}
+                    </span>
+                  </div>
+                )
+              )}
+              <div className="flex justify-between font-mono text-sm font-bold border-t border-black pt-1">
+                <span>TOTAL VENDIDO:</span>
+                <span>
+                  {(cashierSummary.totalSold / 100).toLocaleString("pt-BR", {
+                    style: "currency",
+                    currency: "BRL",
+                  })}
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-4 border-t border-black pt-2">
+              <p className="font-bold text-xs uppercase mb-1">
+                Conferência de Dinheiro:
+              </p>
+              <div className="flex justify-between font-mono text-sm">
+                <span>ESPERADO:</span>
+                <span>
+                  {(cashierSummary.moneyExpected / 100).toLocaleString(
+                    "pt-BR",
+                    { style: "currency", currency: "BRL" }
+                  )}
+                </span>
+              </div>
+              <div className="flex justify-between font-mono text-sm">
+                <span>INFORMADO:</span>
+                <span>
+                  {(
+                    cashierSummary.countedValues["DINHEIRO"] / 100
+                  ).toLocaleString("pt-BR", {
+                    style: "currency",
+                    currency: "BRL",
+                  })}
+                </span>
+              </div>
+              <div className="flex justify-between font-mono text-sm font-black italic">
+                <span>DIFERENÇA:</span>
+                <span>
+                  {(cashierSummary.differences.DINHEIRO / 100).toLocaleString(
+                    "pt-BR",
+                    { style: "currency", currency: "BRL" }
+                  )}
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-10 text-center border-t border-black pt-4">
+              <p className="text-[10px] uppercase">
+                __________________________
+              </p>
+              <p className="text-[10px] uppercase font-bold">
+                Assinatura do Operador
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* MODAL DE CONSULTA DE PRODUTOS (F1) */}
         {isProductSearchOpen && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-start justify-center z-[200] pt-20 p-4">
@@ -777,6 +1015,69 @@ export default function PDVPage() {
               </div>
               <div className="p-4 bg-gray-50 text-center text-[10px] text-gray-400 uppercase font-bold">
                 Pressione ESC para sair
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL DE CONFERÊNCIA DE VALORES (FECHAMENTO) */}
+        {modalType === "FECHAMENTO" && isCashModalOpen && (
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[250] p-4">
+            <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden">
+              <div className="p-6 bg-gray-900 text-white flex justify-between items-center">
+                <div>
+                  <h2 className="text-xl font-black uppercase tracking-tighter">
+                    Conferência de Caixa
+                  </h2>
+                  <p className="text-xs text-gray-400">
+                    Informe os valores físicos presentes na gaveta
+                  </p>
+                </div>
+                <button
+                  onClick={() => setIsCashModalOpen(false)}
+                  className="text-2xl"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="p-6 space-y-4">
+                {["DINHEIRO", "DÉBITO", "CRÉDITO", "PIX"].map((method) => (
+                  <div key={method} className="flex items-center gap-4">
+                    <label className="w-24 font-bold text-gray-600 text-sm">
+                      {method}
+                    </label>
+                    <div className="relative flex-1">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold">
+                        R$
+                      </span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        placeholder="0,00"
+                        className="w-full border-2 border-gray-200 rounded-lg py-3 pl-10 pr-4 text-xl font-mono focus:border-blue-600 outline-none"
+                        onChange={(e) => {
+                          const val = Math.round(
+                            parseFloat(e.target.value || "0") * 100
+                          );
+                          setCountedValues((prev) => ({
+                            ...prev,
+                            [method]: val,
+                          }));
+                        }}
+                      />
+                    </div>
+                  </div>
+                ))}
+
+                <div className="pt-6 border-t">
+                  <button
+                    onClick={() => handleFinalCashierProcess()}
+                    className="w-full bg-green-600 hover:bg-green-500 text-white py-4 rounded-xl font-black text-xl shadow-lg transition-all active:scale-95"
+                  >
+                    CONFIRMAR E IMPRIMIR RESUMO
+                  </button>
+                </div>
               </div>
             </div>
           </div>

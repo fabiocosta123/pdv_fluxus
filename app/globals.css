@@ -9,11 +9,10 @@
 }
 
 :root {
-  --background: #f3f4f6; /* Gray-100 para o fundo do PDV */
-  --foreground: #111827; /* Gray-900 para textos */
+  --background: #f3f4f6;
+  --foreground: #111827;
 }
 
-/* Forçamos o PDV a ficar em Light Mode por padrão para evitar erros de leitura no caixa */
 @media (prefers-color-scheme: dark) {
   :root {
     --background: #f3f4f6; 
@@ -30,7 +29,6 @@ body {
   min-height: 100vh;
 }
 
-/* Scrollbar Customizada (Fina e discreta) */
 .scrollbar-thin::-webkit-scrollbar {
   width: 6px;
 }
@@ -39,23 +37,59 @@ body {
   border-radius: 10px;
 }
 
-/* --- MOTOR DE IMPRESSÃO (Otimizado para Bobina 80mm) --- */
+/* --- CONFIGURAÇÃO DE IMPRESSÃO --- */
 @media print {
-  /* Esconde tudo que não for o cupom */
+  @page {
+    margin: 0; 
+    size: auto;
+  }
+
+  /* Esconde TUDO por padrão */
   body * {
     visibility: hidden;
   }
-  #receipt-print, #receipt-print * {
-    visibility: visible;
+
+  /* Esconde especificamente elementos de interface */
+  .fixed, .absolute, button, input, .modal, [role="dialog"], .no-print {
+    display: none !important;
   }
-  #receipt-print {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
+
+  /* Torna VISÍVEL apenas as áreas de cupom */
+  #printable-area, 
+  #printable-area *,
+  #receipt-print, 
+  #receipt-print * {
+    visibility: visible !important;
   }
-  /* Remove margens e cabeçalhos do navegador (data, url) */
-  @page {
-    margin: 0;
+
+  /* Ajuste de Largura Segura para evitar cortes laterais */
+  #printable-area, #receipt-print {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    display: block !important;
+    /* Reduzido para 72mm para garantir que caiba na bobina de 80mm sem cortar */
+    width: 72mm !important; 
+    max-width: 72mm !important;
+    padding: 0 2mm !important; /* Respiro lateral interno */
+    margin: 0 !important;
+    background-color: white !important;
+  }
+
+  /* Força a fonte mono para alinhamento de colunas */
+  .font-mono {
+    font-family: 'Courier New', Courier, monospace !important;
+    font-size: 12px !important;
+  }
+
+  /* Garante que tabelas usem 100% da largura do cupom */
+  table {
+    width: 100% !important;
+  }
+}
+
+.no-print {
+  @media print {
+    display: none !important;
   }
 }
