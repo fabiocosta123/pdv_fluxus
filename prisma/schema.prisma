@@ -12,12 +12,13 @@ datasource db {
   provider = "postgresql"
 }
 
-// 1. Cadastro de produtos
+// Cadastro de produtos
 model Product {
   id        String   @id @default(cuid())
   name      String
   barCode   String?  @unique
   price     Int
+  costPrice Decimal  @default(0)
   stock     Decimal  @default(0) @db.Decimal(10, 3) // aceita 3 casas decimais
   unit      String   @default("UN") // UN, KG, LT, etc.
   ncm       String?
@@ -28,7 +29,7 @@ model Product {
   saleItem SaleItem[] // relação com itens de venda
 }
 
-// 2. Cabeçalho da Venda (O registro principal da transação)
+// Cabeçalho da Venda (O registro principal da transação)
 model Sale {
   id        String @id @default(cuid())
   total     Int // Valor total da venda em centavos
@@ -45,7 +46,7 @@ model Sale {
   payments Payment[]
 }
 
-// 3. Itens da Venda (A "foto" do produto no momento em que foi vendido)
+// Itens da Venda (A "foto" do produto no momento em que foi vendido)
 model SaleItem {
   id String @id @default(cuid())
 
@@ -93,6 +94,3 @@ enum PaymentMethod {
   OTHER // Outros/Fiado
 }
 
-// --- INDICES (Para otimizar buscas comuns) ---
-// Índice para buscar produtos por nome rapidamente
-// (útil para buscas parciais em listas de produtos)
