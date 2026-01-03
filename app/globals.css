@@ -93,3 +93,20 @@ body {
     display: none !important;
   }
 }
+
+@layer base {
+  /* Aplica cursor pointer automaticamente em elementos clicáveis */
+  button, 
+  a, 
+  select, 
+  input[type="checkbox"], 
+  input[type="radio"],
+  .cursor-clickable {
+    @apply cursor-pointer;
+  }
+
+  /* Garante que botões desabilitados mostrem o cursor de bloqueio */
+  button:disabled {
+    @apply cursor-not-allowed;
+  }
+}
