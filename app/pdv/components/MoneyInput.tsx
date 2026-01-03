@@ -17,30 +17,50 @@ export const MoneyInput: React.FC<MoneyInputProps> = ({
     className,
     autoFocus
 }) => {
-    return (
-    <input
-      type="number"
-      inputMode="decimal"
-      autoFocus={autoFocus}
-      step="0.01"
-      value={(value / 100).toFixed(2)}
-      onChange={(e) => {
-        const val = e.target.value;
-        onChange(val === "" ? 0 : Math.round(parseFloat(val) * 100));
-      }}
-      onKeyDown={(e) => {
-        // Bloqueia funções nativas do navegador (F1, F3, etc)
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        // Remove tudo que não for número (limpa pontos e vírgulas)
+        const digits = e.target.value.replace(/\D/g, "");
+        
+        // Converte a string de dígitos para um número inteiro (centavos)
+        // Ex: "1050" vira 1050 (que representa R$ 10,50)
+        const newValue = digits ? parseInt(digits, 10) : 0;
+        
+        onChange(newValue);
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        // Atalhos de função (F1, F3, etc)
         if (["F1", "F3", "F4", "F6", "F9", "F10"].includes(e.key)) {
-          e.preventDefault();
-          onShortcut?.(e.key);
+            e.preventDefault();
+            onShortcut?.(e.key);
+            return;
         }
 
-        if (e.key === "Enter" && value > 0) {
-          onEnter?.();
+        // Enter para confirmar o valor
+        if (e.key === "Enter") {
+            // Se o valor for 0 mas o saldo já estiver pago, o Enter deve passar adiante            
+            onEnter?.();
         }
-      }}
-      onFocus={(e) => e.target.select()}
-      className={className}
-    />
-  );
-}
+    };
+
+    // Formata o inteiro para exibição (BR)
+    const displayValue = (value / 100).toLocaleString("pt-BR", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    });
+
+    return (
+        <input
+            type="text" 
+            inputMode="numeric"
+            autoFocus={autoFocus}
+            value={displayValue}
+            onChange={handleChange}
+            onKeyDown={handleKeyDown}
+            onFocus={(e) => e.target.select()}
+            className={className}
+            spellCheck={false}
+            autoComplete="off"
+        />
+    );
+};
