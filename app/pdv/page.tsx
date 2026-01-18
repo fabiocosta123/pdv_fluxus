@@ -538,9 +538,17 @@ export default function PDVPage() {
     const localCatalog = JSON.parse(
       localStorage.getItem("localCatalog") || "[]"
     );
-    const product = localCatalog.find(
-      (p: Product) => p.barCode === codeToSearch || p.id === codeToSearch
-    );
+    const product = localCatalog.find((p: Product) => {
+      const searchTerm = codeToSearch.toLowerCase();
+
+      // Verifica código de barras
+      const isBarcode = p.barCode.toLowerCase() === searchTerm;
+
+      // Verifica se o termo está contido no nome do produto
+      const isName = p.name.toLowerCase().includes(searchTerm);
+
+      return isBarcode || isName;
+    });
 
     if (product) {
       if (product.isActive === false) {
