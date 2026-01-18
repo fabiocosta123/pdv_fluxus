@@ -11,10 +11,9 @@ export async function GET(request: Request,
 
         const searchInput = decodeURIComponent(resolvedParams.code).trim();
 
-
-
         const product = await prisma.product.findFirst({
             where: {
+                isActive: true,
                 OR: [
                     { barCode: searchInput },
                     { name : {

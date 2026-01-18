@@ -16,6 +16,7 @@ interface Product {
   price: number;
   barCode: string;
   stock: number;
+  isActive: boolean;
 }
 
 interface CartItem extends Product {
@@ -464,6 +465,10 @@ export default function PDVPage() {
 
   // adiciona ao carrinho
   const addToCart = (product: Product, qty: number = 1) => {
+    if (product.isActive === false) {
+      toast.error("Este produto está inativo e não pode ser vendido!");
+      return;
+    }
     setCart((prev) => {
       const existing = prev.find((item) => item.id === product.id);
       const newQuantity = existing ? existing.quantity + qty : qty;
@@ -538,6 +543,11 @@ export default function PDVPage() {
     );
 
     if (product) {
+      if (product.isActive === false) {
+        toast.error("Produto inativado no estoque!");
+        setBarcode("");
+        return;
+      }
       if (isScaleLabel) {
         const productUnitPrice = product.price / 100;
         quantityToLoad = priceFromLabel / productUnitPrice;
@@ -686,7 +696,6 @@ export default function PDVPage() {
 
   return (
     <>
-     
       <div className="flex items-center gap-4">
         {/* Botão de Voltar Inteligente */}
         <button
@@ -709,7 +718,11 @@ export default function PDVPage() {
       </div>
       {/* Se o caixa não estiver aberto, mostra apenas o modal de abertura */}
       {!isCashierOpen && (
-        <OpenCashierModal isOpen={true} onOpen={handleOpenCashier} onCancel={() => router.push("/")} />
+        <OpenCashierModal
+          isOpen={true}
+          onOpen={handleOpenCashier}
+          onCancel={() => router.push("/")}
+        />
       )}
       <div className="h-[100dvh] bg-gray-100 font-sans overflow-hidden flex flex-col lg:flex-row p-2 lg:p-4 gap-2 lg:gap-4">
         {/* COLUNA ESQUERDA: LISTA DE PRODUTOS */}

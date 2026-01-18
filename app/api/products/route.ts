@@ -3,8 +3,8 @@ import { prisma } from "@/lib/prisma";
 
 export async function GET(request: Request) {
   try {
-    const products = await prisma.product.findMany({
-      orderBy: { name: "asc" }, // traz em ordem alfabética
+    const products = await prisma.product.findMany({    
+      orderBy: { name: "asc" }, 
     });
     return NextResponse.json(products, { status: 200 });
   } catch (error: any) {
