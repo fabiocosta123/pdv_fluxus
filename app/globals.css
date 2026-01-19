@@ -110,3 +110,59 @@ body {
     @apply cursor-not-allowed;
   }
 }
+
+@media screen {
+  .print-only {
+    display: none;
+  }
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .print-only, .print-only * {
+    visibility: visible;
+  }
+  .print-only {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+}
+
+/* globals.css */
+@media screen {
+  .print-area {
+    display: none !important;
+  }
+}
+
+@media print {
+  /* Esconde tudo que não for o cupom */
+  body * {
+    visibility: hidden;
+  }
+
+  /* Mostra apenas a div de impressão e seus filhos */
+  .print-area, .print-area * {
+    visibility: visible;
+  }
+
+  /* Força o cupom a ficar no topo da página de impressão */
+  .print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 10px;
+  }
+
+  /* Remove margens padrão da página (evita cabeçalhos do navegador) */
+  @page {
+    margin: 0;
+    size: auto;
+  }
+}

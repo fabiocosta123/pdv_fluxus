@@ -30,7 +30,7 @@ export default function PDVPage() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [payments, setPayments] = useState<{ method: string; value: number }[]>(
-    []
+    [],
   );
   const [paymentInputValue, setPaymentInputValue] = useState(0);
   const [lastSale, setLastSale] = useState<any>(null);
@@ -48,8 +48,13 @@ export default function PDVPage() {
 
   const [cashierSummary, setCashierSummary] = useState<any>(null);
   const [countedValues, setCountedValues] = useState<{ [key: string]: number }>(
-    {}
+    {},
   );
+
+  const [customer, setCustomer] = useState<{ name: string; document: string }>({
+    name: "",
+    document: "",
+  });
 
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -85,12 +90,12 @@ export default function PDVPage() {
       return;
     }
     const localCatalog = JSON.parse(
-      localStorage.getItem("localCatalog") || "[]"
+      localStorage.getItem("localCatalog") || "[]",
     );
     const filtered = localCatalog.filter(
       (p: Product) =>
         p.name.toLowerCase().includes(term.toLowerCase()) ||
-        p.barCode.includes(term)
+        p.barCode.includes(term),
     );
     setSearchResults(filtered);
   };
@@ -103,7 +108,7 @@ export default function PDVPage() {
       `${method}: ${(amount / 100).toLocaleString("pt-BR", {
         style: "currency",
         currency: "BRL",
-      })} registrado!`
+      })} registrado!`,
     );
   }, []);
 
@@ -111,7 +116,7 @@ export default function PDVPage() {
   const getCashierSummary = useCallback(() => {
     // valor de abertura
     const openingValue = Number(
-      localStorage.getItem("cashier_opening_value") || 0
+      localStorage.getItem("cashier_opening_value") || 0,
     );
 
     //histórico de movimentações (Aportes e Sangrias)
@@ -122,12 +127,12 @@ export default function PDVPage() {
         if (curr.type === "SANGRIA") acc.totalSangria += curr.value;
         return acc;
       },
-      { totalAporte: 0, totalSangria: 0 }
+      { totalAporte: 0, totalSangria: 0 },
     );
 
     // pega vendas do localStorage
     const turnSales = JSON.parse(
-      localStorage.getItem("current_turn_sales") || "[]"
+      localStorage.getItem("current_turn_sales") || "[]",
     );
 
     const salesByMethod = turnSales.reduce((acc: any, sale: any) => {
@@ -139,7 +144,7 @@ export default function PDVPage() {
 
     const totalSold = Object.values(salesByMethod).reduce(
       (a: any, b: any) => a + b,
-      0
+      0,
     ) as number;
 
     // Abertura + Vendas em Dinheiro + Aportes - Sangrias
@@ -172,6 +177,7 @@ export default function PDVPage() {
       total,
       totalPaid,
       change,
+      customer,
       createdAt: saleDate,
     };
 
@@ -188,12 +194,12 @@ export default function PDVPage() {
         toast.success("Venda online realizada!", { id: toastId });
 
         const currentTurnSales = JSON.parse(
-          localStorage.getItem("current_turn_sales") || "[]"
+          localStorage.getItem("current_turn_sales") || "[]",
         );
         currentTurnSales.push(saleData);
         localStorage.setItem(
           "current_turn_sales",
-          JSON.stringify(currentTurnSales)
+          JSON.stringify(currentTurnSales),
         );
       } else {
         throw new Error();
@@ -210,7 +216,12 @@ export default function PDVPage() {
         setCart([]);
         setPayments([]);
         setIsPaymentModalOpen(false);
+        setCustomer({ name: "", document: "" });
         setBarcode("");
+
+        setTimeout(() => {
+          setLastSale(null); // faz o componente Receipt retornar null e sumir do HTML
+        }, 2000);
       }, 300);
     }
   }, [cart, payments, total, totalPaid, change, remaingBalance]);
@@ -231,6 +242,7 @@ export default function PDVPage() {
 
   // compara o que foi digitado com o que tem em caixa
   const handleFinalCashierProcess = useCallback(() => {
+    setLastSale(null);
     const summary = getCashierSummary();
     // Calcula as diferenças
     const differences = {
@@ -255,7 +267,7 @@ export default function PDVPage() {
 
     // Salva no histórico de fechamentos
     const closeHistory = JSON.parse(
-      localStorage.getItem("closing_history") || "[]"
+      localStorage.getItem("closing_history") || "[]",
     );
     closeHistory.push(finalReport);
     localStorage.setItem("closing_history", JSON.stringify(closeHistory));
@@ -272,7 +284,9 @@ export default function PDVPage() {
       localStorage.removeItem("cashier_opening_value");
       localStorage.removeItem("cashier_history");
 
-      router.push("/");
+      setTimeout(() => {
+        router.push("/");
+      }, 500);
     }, 1000);
   }, [countedValues, getCashierSummary]);
 
@@ -381,7 +395,7 @@ export default function PDVPage() {
       handleAddPayment,
       finalizarVenda,
       removeLastItem,
-    ]
+    ],
   );
 
   const syncOfflineSales = useCallback(async () => {
@@ -493,7 +507,7 @@ export default function PDVPage() {
                 quantity: newQuantity,
                 subtotal: newQuantity * item.price,
               }
-            : item
+            : item,
         );
       }
 
@@ -536,7 +550,7 @@ export default function PDVPage() {
 
     // busca no localStorage offline
     const localCatalog = JSON.parse(
-      localStorage.getItem("localCatalog") || "[]"
+      localStorage.getItem("localCatalog") || "[]",
     );
     const product = localCatalog.find((p: Product) => {
       const searchTerm = codeToSearch.toLowerCase();
@@ -568,7 +582,7 @@ export default function PDVPage() {
     // busca na api se não achou no cache ou se tem internet
     try {
       const response = await fetch(
-        `/api/products/${encodeURIComponent(codeToSearch)}`
+        `/api/products/${encodeURIComponent(codeToSearch)}`,
       );
       if (response.ok) {
         const apiProduct = await response.json();
@@ -656,7 +670,7 @@ export default function PDVPage() {
     async (
       type: "SANGRIA" | "APORTE" | "FECHAMENTO",
       value: number,
-      obs: string
+      obs: string,
     ) => {
       const movementData = {
         id: `MOV-${Date.now()}`,
@@ -669,7 +683,7 @@ export default function PDVPage() {
       try {
         //Salva no histórico local (para o fechamento do dia)
         const history = JSON.parse(
-          localStorage.getItem("cashier_history") || "[]"
+          localStorage.getItem("cashier_history") || "[]",
         );
         history.push(movementData);
         localStorage.setItem("cashier_history", JSON.stringify(history));
@@ -687,7 +701,7 @@ export default function PDVPage() {
             `${type} de ${(value / 100).toLocaleString("pt-BR", {
               style: "currency",
               currency: "BRL",
-            })} registrado!`
+            })} registrado!`,
           );
         }
 
@@ -699,7 +713,7 @@ export default function PDVPage() {
         setIsCashModalOpen(false);
       }
     },
-    []
+    [],
   );
 
   return (
@@ -889,6 +903,8 @@ export default function PDVPage() {
             onClose={() => setIsPaymentModalOpen(false)}
             handleAddPayment={handleAddPayment}
             onFinalize={finalizarVenda}
+            customer={customer}
+            setCustomer={setCustomer}
           />
         )}
 
@@ -904,7 +920,10 @@ export default function PDVPage() {
 
         {/* Área de Impressão do Fechamento (Só renderiza se o summary existir) */}
         {cashierSummary && (
-          <div id="printable-area" className="hidden print:block">
+          <div
+            id="printable-area"
+            className="print-area hidden print:block text-black w-[80mm]"
+          >
             <div className="text-center border-b-2 border-black pb-2 mb-2">
               <h2 className="text-xl font-bold uppercase">
                 Resumo de Fechamento
@@ -929,7 +948,7 @@ export default function PDVPage() {
                       })}
                     </span>
                   </div>
-                )
+                ),
               )}
               <div className="flex justify-between font-mono text-sm font-bold border-t border-black pt-1">
                 <span>TOTAL VENDIDO:</span>
@@ -951,7 +970,7 @@ export default function PDVPage() {
                 <span>
                   {(cashierSummary.moneyExpected / 100).toLocaleString(
                     "pt-BR",
-                    { style: "currency", currency: "BRL" }
+                    { style: "currency", currency: "BRL" },
                   )}
                 </span>
               </div>
@@ -971,10 +990,11 @@ export default function PDVPage() {
                 <span>
                   {(cashierSummary.differences.DINHEIRO / 100).toLocaleString(
                     "pt-BR",
-                    { style: "currency", currency: "BRL" }
+                    { style: "currency", currency: "BRL" },
                   )}
                 </span>
               </div>
+              <div className="h-20" aria-hidden="true"></div>
             </div>
 
             <div className="mt-10 text-center border-t border-black pt-4">
@@ -1098,7 +1118,7 @@ export default function PDVPage() {
                         className="w-full border-2 border-gray-200 rounded-lg py-3 pl-10 pr-4 text-xl font-mono focus:border-blue-600 outline-none"
                         onChange={(e) => {
                           const val = Math.round(
-                            parseFloat(e.target.value || "0") * 100
+                            parseFloat(e.target.value || "0") * 100,
                           );
                           setCountedValues((prev) => ({
                             ...prev,
@@ -1122,6 +1142,10 @@ export default function PDVPage() {
             </div>
           </div>
         )}
+        <div>
+          {/* ... resto do PDV ... */}
+          {lastSale && <Receipt lastSale={lastSale} />}
+        </div>
       </div>
     </>
   );
