@@ -100,17 +100,28 @@ export default function PDVPage() {
     setSearchResults(filtered);
   };
 
-  const handleAddPayment = useCallback((method: string, amount: number) => {
-    if (amount <= 0) return;
+  const handleAddPayment = useCallback(
+    (method: string, amount: number) => {
+      if (amount <= 0) return;
 
-    setPayments((prev) => [...prev, { method, value: amount }]);
-    toast.info(
-      `${method}: ${(amount / 100).toLocaleString("pt-BR", {
-        style: "currency",
-        currency: "BRL",
-      })} registrado!`,
-    );
-  }, []);
+      setPayments((prev) => {
+        const newPayments = [...prev, { method, value: amount }];
+
+        toast.info(
+          `${method}: ${(amount / 100).toLocaleString("pt-BR", {
+            style: "currency",
+            currency: "BRL",
+          })} registrado!`,
+        );
+
+        return newPayments;
+      });
+
+      // Limpa o valor digitado para facilitar a próxima entrada
+      setPaymentInputValue(0);
+    },
+    [total],
+  );
 
   // fechamento de caixa
   const getCashierSummary = useCallback(() => {
@@ -661,9 +672,12 @@ export default function PDVPage() {
       inputRef.current?.focus();
   }, [isPaymentModalOpen]);
 
+  // define o valor no momento em que o modal abre
   useEffect(() => {
-    if (isPaymentModalOpen) setPaymentInputValue(remaingBalance);
-  }, [isPaymentModalOpen, remaingBalance]);
+    if (isPaymentModalOpen && payments.length === 0) {
+      setPaymentInputValue(remaingBalance);
+    }
+  }, [isPaymentModalOpen]);
 
   // Função para processar Sangria, Aporte e Fechamento
   const handleProcessMovement = useCallback(

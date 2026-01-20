@@ -105,7 +105,7 @@ export default function InventoryPage() {
         </Link>
       </header>
 
-      <main className="p-4 lg:p-8 max-w-7xl mx-auto w-full">
+      <main className="p-4 lg:p-8 max-w-7xl mx-auto w-full overflow-hidden">
         <div className="flex flex-col md:flex-row gap-4 mb-8">
           <div className="relative flex-1 group">
             <Search

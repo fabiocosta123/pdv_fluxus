@@ -21,7 +21,7 @@ export default function RootLayout({
         <link rel="manifest" href="/manifest.json" />
       </head>
       {/* O h-screen e overflow-hidden impedem que a página role para fora da visão */}
-      <body className={`${inter.className} bg-gray-100 h-screen overflow-hidden`}>
+      <body className={`${inter.className} bg-gray-100 min-h-screen overflow-y-auto`}>
         <Toaster richColors position="top-right" /> {/* 2. Adicione aqui */}
         {children}
       </body>
