@@ -1,4 +1,4 @@
-import { MoneyInput } from "./MoneyInput";
+import { MoneyInput } from "../../components/MoneyInput";
 import { useEffect, useCallback } from "react";
 
 interface PaymentModalProps {

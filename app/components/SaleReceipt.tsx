@@ -14,7 +14,7 @@ interface ReceiptProps {
   } | null;
 }
 
-export const Receipt = ({ lastSale }: ReceiptProps) => {
+export const SaleReceipt = ({ lastSale }: ReceiptProps) => {
   if (!lastSale) return null;
 
   return (

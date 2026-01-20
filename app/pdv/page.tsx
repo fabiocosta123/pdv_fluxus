@@ -3,11 +3,11 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { CashierModal } from "./components/CashierModal";
+import { CashierModal } from "../components/CashierModal";
 import { CartTable } from "./components/CartTable";
 import { PaymentModal } from "./components/PaymentModal";
-import { Receipt } from "./components/Receipt";
-import { OpenCashierModal } from "./components/OpenCashierModal";
+import { SaleReceipt } from "@/app/components/SaleReceipt";
+import { OpenCashierModal } from "../components/OpenCashierModal";
 import { ArrowLeft } from "lucide-react";
 
 interface Product {
@@ -930,7 +930,7 @@ export default function PDVPage() {
         />
 
         {/* Componente de Impressão Invisível */}
-        <Receipt lastSale={lastSale} />
+        <SaleReceipt lastSale={lastSale} />
 
         {/* Área de Impressão do Fechamento (Só renderiza se o summary existir) */}
         {cashierSummary && (
@@ -1158,7 +1158,7 @@ export default function PDVPage() {
         )}
         <div>
           {/* ... resto do PDV ... */}
-          {lastSale && <Receipt lastSale={lastSale} />}
+          {lastSale && <SaleReceipt lastSale={lastSale} />}
         </div>
       </div>
     </>

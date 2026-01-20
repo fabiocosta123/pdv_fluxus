@@ -32,11 +32,13 @@ model Product {
 // Cabeçalho da Venda (O registro principal da transação)
 model Sale {
   id        String @id @default(cuid())
-  total     Int // Valor total da venda em centavos
+  total     Int 
   totalPaid Int
   change    Int    @default(0)
 
-  status SaleStatus @default(COMPLETED) // COMPLETED ou CANCELED
+  status SaleStatus @default(COMPLETED) 
+  customer   Customer? @relation(fields: [customerId], references: [id])
+  customerId String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -91,6 +93,21 @@ enum PaymentMethod {
   PIX
   DEBIT // Cartão de Débito
   CREDIT // Cartão de Crédito
+  WALLET // Carteira
   OTHER // Outros/Fiado
 }
 
+
+// Cadastro de Clientes para Fiado
+model Customer {
+  id           String   @id @default(cuid())
+  name         String
+  document     String?  @unique // CPF ou CNPJ
+  creditLimit  Int      @default(0) // Limite em centavos
+  currentDebt  Int      @default(0) // Dívida atual em centavos
+  status       String   @default("ACTIVE")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  sales        Sale[]   // Relacionamento com as vendas
+}

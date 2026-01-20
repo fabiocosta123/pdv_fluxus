@@ -13,7 +13,7 @@ import {
   DollarSign 
 } from "lucide-react";
 import { toast } from "sonner";
-import { MoneyInput } from "@/app/pdv/components/MoneyInput";
+import { MoneyInput } from "@/app/components/MoneyInput";
 
 export default function NewInventoryPage() {
   const router = useRouter();
