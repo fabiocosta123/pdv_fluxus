@@ -307,7 +307,7 @@ export default function PDVPage() {
   // atalhos teclado com travas de segurança
   const handleShortcuts = useCallback(
     (key: string) => {
-      //SE O MODAL DE PAGAMENTO ESTIVER ABERTO
+      // --- MODAL DE PAGAMENTO ---
       if (isPaymentModalOpen) {
         switch (key) {
           case "F1":
@@ -329,20 +329,20 @@ export default function PDVPage() {
             if (remaingBalance === 0) finalizarVenda();
             break;
         }
-        return;
+        return; // bloqueia outras teclas enquanto modal de pagamento está aberto
       }
 
-      //SE O MODAL DE CONSULTA (F1) ESTIVER ABERTO
+      // --- MODAL DE CONSULTA DE PRODUTOS ---
       if (isProductSearchOpen) {
         if (key === "Escape") {
           setIsProductSearchOpen(false);
           setSearchTerm("");
           setSearchResults([]);
         }
-        return;
+        return; // bloqueia outras teclas enquanto modal de consulta está aberto
       }
 
-      // TELA DE VENDA NORMAL
+      // --- TELA DE VENDA NORMAL ---
       const isCartEmpty = cart.length === 0;
 
       switch (key) {
@@ -411,6 +411,7 @@ export default function PDVPage() {
       removeLastItem,
     ],
   );
+
 
   const syncOfflineSales = useCallback(async () => {
     const queue = JSON.parse(localStorage.getItem("offlineSales") || "[]");
@@ -1094,56 +1095,54 @@ export default function PDVPage() {
           // </div>
 
           <div className="mt-4 max-h-[400px] overflow-y-auto">
-  {searchResults.map((p) => (
-    <div
-      key={p.id}
-      className="flex justify-between items-center p-4 border-b hover:bg-gray-50"
-    >
-      <div>
-        <p className="font-bold text-lg uppercase">{p.name}</p>
-        <p className="text-sm text-gray-400 font-mono">{p.barCode ?? ""}</p>
-      </div>
-      <div className="text-right">
-        <p className="text-2xl font-black text-blue-700">
-          {(p.price / 100).toLocaleString("pt-BR", {
-            style: "currency",
-            currency: "BRL",
-          })}
-        </p>
-        <p
-          className={`text-xs font-bold ${
-            p.stock > 0 ? "text-green-500" : "text-red-500"
-          }`}
-        >
-          ESTOQUE: {p.stock}
-        </p>
+            {searchResults.map((p) => (
+              <div
+                key={p.id}
+                className="flex justify-between items-center p-4 border-b hover:bg-gray-50"
+              >
+                <div>
+                  <p className="font-bold text-lg uppercase">{p.name}</p>
+                  <p className="text-sm text-gray-400 font-mono">{p.barCode ?? ""}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-2xl font-black text-blue-700">
+                    {(p.price / 100).toLocaleString("pt-BR", {
+                      style: "currency",
+                      currency: "BRL",
+                    })}
+                  </p>
+                  <p
+                    className={`text-xs font-bold ${p.stock > 0 ? "text-green-500" : "text-red-500"
+                      }`}
+                  >
+                    ESTOQUE: {p.stock}
+                  </p>
 
-        {/* Botão para inserir na compra */}
-        <button
-          onClick={() => {
-            addToCart(p);
-            setIsProductSearchOpen(false);
-            setSearchTerm("");
-            setSearchResults([]);
-          }}
-          disabled={p.stock <= 0 || !p.isActive}
-          className={`mt-2 px-3 py-1 rounded text-xs font-bold ${
-            p.stock > 0 && p.isActive
-              ? "bg-green-600 text-white hover:bg-green-500"
-              : "bg-gray-300 text-gray-500 cursor-not-allowed"
-          }`}
-        >
-          Inserir na compra
-        </button>
-      </div>
-    </div>
-  ))}
-  {searchTerm.length > 1 && searchResults.length === 0 && (
-    <p className="text-center py-8 text-gray-400">
-      Nenhum produto encontrado.
-    </p>
-  )}
-</div>
+                  {/* Botão para inserir na compra */}
+                  <button
+                    onClick={() => {
+                      addToCart(p);
+                      setIsProductSearchOpen(false);
+                      setSearchTerm("");
+                      setSearchResults([]);
+                    }}
+                    disabled={p.stock <= 0 || !p.isActive}
+                    className={`mt-2 px-3 py-1 rounded text-xs font-bold ${p.stock > 0 && p.isActive
+                        ? "bg-green-600 text-white hover:bg-green-500"
+                        : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                      }`}
+                  >
+                    Inserir na compra
+                  </button>
+                </div>
+              </div>
+            ))}
+            {searchTerm.length > 1 && searchResults.length === 0 && (
+              <p className="text-center py-8 text-gray-400">
+                Nenhum produto encontrado.
+              </p>
+            )}
+          </div>
 
         )}
 
