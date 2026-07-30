@@ -20,9 +20,9 @@ export const SaleReceipt = ({ lastSale }: ReceiptProps) => {
   return (
     <div className="print-area font-mono text-[12px] leading-tight text-black p-2 w-[72mm]">
       <div className="text-center border-b border-dashed border-black pb-2 mb-2">
-        <h2 className="text-sm font-bold uppercase">Nome da Sua Empresa</h2>
-        <p className="text-[10px]">Rua das Vendas, 100 - Centro</p>
-        <p className="text-[10px]">CNPJ: 00.000.000/0001-00</p>
+        <h2 className="text-sm font-bold uppercase">Restaurante Daju</h2>
+        <p className="text-[10px]">Rua Meraldo Previdi</p>
+        <p className="text-[10px]">CNPJ: 32.905.822/0001-08</p>
       </div>
 
       <div className="mb-2 text-[10px]">
