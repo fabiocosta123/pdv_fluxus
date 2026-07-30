@@ -3,7 +3,7 @@ import { MoneyInput } from "./MoneyInput";
 
 interface CashierModalProps {
   isOpen: boolean;
-  type: 'SANGRIA' | 'APORTE' | 'FECHAMENTO'; // Tipagem específica
+  type: 'SANGRIA' | 'APORTE' | 'FECHAMENTO';
   onClose: () => void;
   onConfirm: (type: 'SANGRIA' | 'APORTE' | 'FECHAMENTO', value: number, obs: string) => void;
 }

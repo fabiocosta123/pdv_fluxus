@@ -9,12 +9,14 @@ import { PaymentModal } from "./components/PaymentModal";
 import { SaleReceipt } from "@/app/components/SaleReceipt";
 import { OpenCashierModal } from "../components/OpenCashierModal";
 import { ArrowLeft } from "lucide-react";
+import ProductSearch from "../components/ProductSearch";
+
 
 interface Product {
   id: string;
   name: string;
   price: number;
-  barCode: string;
+  barCode?: string;
   stock: number;
   isActive: boolean;
 }
@@ -95,8 +97,9 @@ export default function PDVPage() {
     const filtered = localCatalog.filter(
       (p: Product) =>
         p.name.toLowerCase().includes(term.toLowerCase()) ||
-        p.barCode.includes(term),
+        (p.barCode ?? "").includes(term),
     );
+
     setSearchResults(filtered);
   };
 
@@ -326,7 +329,7 @@ export default function PDVPage() {
             if (remaingBalance === 0) finalizarVenda();
             break;
         }
-        return; // Para a execução aqui se o modal estiver aberto
+        return;
       }
 
       //SE O MODAL DE CONSULTA (F1) ESTIVER ABERTO
@@ -514,10 +517,10 @@ export default function PDVPage() {
         return prev.map((item) =>
           item.id === product.id
             ? {
-                ...item,
-                quantity: newQuantity,
-                subtotal: newQuantity * item.price,
-              }
+              ...item,
+              quantity: newQuantity,
+              subtotal: newQuantity * item.price,
+            }
             : item,
         );
       }
@@ -567,7 +570,8 @@ export default function PDVPage() {
       const searchTerm = codeToSearch.toLowerCase();
 
       // Verifica código de barras
-      const isBarcode = p.barCode.toLowerCase() === searchTerm;
+      const isBarcode = (p.barCode ?? "").toLowerCase() === searchTerm;
+
 
       // Verifica se o termo está contido no nome do produto
       const isName = p.name.toLowerCase().includes(searchTerm);
@@ -787,6 +791,8 @@ export default function PDVPage() {
         <div className="w-full lg:w-[450px] flex flex-col gap-2 lg:gap-4 order-1 lg:order-2 shrink-0 h-full">
           {/* 1. CAMPO DE BUSCA */}
           <div className="bg-white p-3 lg:p-6 rounded-lg shadow-sm border-t-4 border-blue-600">
+
+
             <form onSubmit={handleSearchProduct}>
               <label className="text-[10px] font-bold uppercase text-gray-400 block mb-1">
                 Bipar item ou buscar
@@ -848,27 +854,23 @@ export default function PDVPage() {
                   handleShortcuts(item.key === "DEL" ? "Delete" : item.key)
                 }
                 disabled={item.disabled}
-                className={`${
-                  item.color
-                } p-3 rounded-lg border border-gray-200 flex items-center justify-between shadow-sm transition-all ${
-                  item.disabled
+                className={`${item.color
+                  } p-3 rounded-lg border border-gray-200 flex items-center justify-between shadow-sm transition-all ${item.disabled
                     ? "opacity-30 cursor-not-allowed grayscale"
                     : "hover:border-blue-500 active:scale-95"
-                }`}
+                  }`}
               >
                 <span
-                  className={`text-[10px] font-bold uppercase ${
-                    item.key === "F8" ? "text-white" : "text-gray-500"
-                  }`}
+                  className={`text-[10px] font-bold uppercase ${item.key === "F8" ? "text-white" : "text-gray-500"
+                    }`}
                 >
                   {item.label}
                 </span>
                 <kbd
-                  className={`px-2 py-1 rounded text-xs font-black border-b-2 ${
-                    item.key === "F8"
-                      ? "bg-red-800 border-red-900"
-                      : "bg-white border-gray-300"
-                  }`}
+                  className={`px-2 py-1 rounded text-xs font-black border-b-2 ${item.key === "F8"
+                    ? "bg-red-800 border-red-900"
+                    : "bg-white border-gray-300"
+                    }`}
                 >
                   {item.key}
                 </kbd>
@@ -893,11 +895,10 @@ export default function PDVPage() {
             <button
               onClick={() => setIsPaymentModalOpen(true)}
               disabled={cart.length === 0}
-              className={`w-full py-5 lg:py-6 rounded-xl text-lg lg:text-2xl font-black uppercase transition-all active:scale-95 flex flex-col items-center justify-center leading-tight ${
-                cart.length === 0
-                  ? "bg-blue-800 text-blue-400 cursor-not-allowed"
-                  : "bg-green-500 hover:bg-green-400 text-white shadow-inner"
-              }`}
+              className={`w-full py-5 lg:py-6 rounded-xl text-lg lg:text-2xl font-black uppercase transition-all active:scale-95 flex flex-col items-center justify-center leading-tight ${cart.length === 0
+                ? "bg-blue-800 text-blue-400 cursor-not-allowed"
+                : "bg-green-500 hover:bg-green-400 text-white shadow-inner"
+                }`}
             >
               <span>FINALIZAR VENDA</span>
               <span className="text-[10px] opacity-70">PRESSIONE F10</span>
@@ -1024,74 +1025,126 @@ export default function PDVPage() {
 
         {/* MODAL DE CONSULTA DE PRODUTOS (F1) */}
         {isProductSearchOpen && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-start justify-center z-[200] pt-20 p-4">
-            <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden">
-              <div className="p-4 bg-blue-600 text-white flex justify-between items-center">
-                <h3 className="font-bold uppercase italic">
-                  🔍 Consulta de Preços
-                </h3>
-                <button
-                  onClick={() => {
-                    setIsProductSearchOpen(false);
-                    setSearchTerm("");
-                    setSearchResults([]);
-                  }}
-                  className="text-2xl"
-                >
-                  ✕
-                </button>
-              </div>
-              <div className="p-6">
-                <input
-                  autoFocus
-                  type="text"
-                  placeholder="Digite o nome ou bipe o código..."
-                  className="w-full border-2 border-blue-100 rounded-xl p-4 text-2xl outline-none focus:border-blue-600 uppercase"
-                  value={searchTerm}
-                  onChange={(e) => handleProductLookup(e.target.value)}
-                />
+          // <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-start justify-center z-[200] pt-20 p-4">
+          //   <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden">
+          //     <div className="p-4 bg-blue-600 text-white flex justify-between items-center">
+          //       <h3 className="font-bold uppercase italic">
+          //         🔍 Consulta de Preços
+          //       </h3>
+          //       <button
+          //         onClick={() => {
+          //           setIsProductSearchOpen(false);
+          //           setSearchTerm("");
+          //           setSearchResults([]);
+          //         }}
+          //         className="text-2xl"
+          //       >
+          //         ✕
+          //       </button>
+          //     </div>
+          //     <div className="p-6">
+          //       <input
+          //         autoFocus
+          //         type="text"
+          //         placeholder="Digite o nome ou bipe o código..."
+          //         className="w-full border-2 border-blue-100 rounded-xl p-4 text-2xl outline-none focus:border-blue-600 uppercase"
+          //         value={searchTerm}
+          //         onChange={(e) => handleProductLookup(e.target.value)}
+          //       />
 
-                <div className="mt-4 max-h-[400px] overflow-y-auto">
-                  {searchResults.map((p) => (
-                    <div
-                      key={p.id}
-                      className="flex justify-between items-center p-4 border-b hover:bg-gray-50"
-                    >
-                      <div>
-                        <p className="font-bold text-lg uppercase">{p.name}</p>
-                        <p className="text-sm text-gray-400 font-mono">
-                          {p.barCode}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-2xl font-black text-blue-700">
-                          {(p.price / 100).toLocaleString("pt-BR", {
-                            style: "currency",
-                            currency: "BRL",
-                          })}
-                        </p>
-                        <p
-                          className={`text-xs font-bold ${
-                            p.stock > 0 ? "text-green-500" : "text-red-500"
-                          }`}
-                        >
-                          ESTOQUE: {p.stock}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                  {searchTerm.length > 1 && searchResults.length === 0 && (
-                    <p className="text-center py-8 text-gray-400">
-                      Nenhum produto encontrado.
-                    </p>
-                  )}
-                </div>
-              </div>
-              <div className="p-4 bg-gray-50 text-center text-[10px] text-gray-400 uppercase font-bold">
-                Pressione ESC para sair
-              </div>
-            </div>
-          </div>
+          //       <div className="mt-4 max-h-[400px] overflow-y-auto">
+          //         {searchResults.map((p) => (
+          //           <div
+          //             key={p.id}
+          //             className="flex justify-between items-center p-4 border-b hover:bg-gray-50"
+          //           >
+          //             <div>
+          //               <p className="font-bold text-lg uppercase">{p.name}</p>
+          //               <p className="text-sm text-gray-400 font-mono">
+          //                 {p.barCode}
+          //               </p>
+          //             </div>
+          //             <div className="text-right">
+          //               <p className="text-2xl font-black text-blue-700">
+          //                 {(p.price / 100).toLocaleString("pt-BR", {
+          //                   style: "currency",
+          //                   currency: "BRL",
+          //                 })}
+          //               </p>
+          //               <p
+          //                 className={`text-xs font-bold ${p.stock > 0 ? "text-green-500" : "text-red-500"
+          //                   }`}
+          //               >
+          //                 ESTOQUE: {p.stock}
+          //               </p>
+          //             </div>
+          //           </div>
+          //         ))}
+          //         {searchTerm.length > 1 && searchResults.length === 0 && (
+          //           <p className="text-center py-8 text-gray-400">
+          //             Nenhum produto encontrado.
+          //           </p>
+          //         )}
+          //       </div>
+          //     </div>
+          //     <div className="p-4 bg-gray-50 text-center text-[10px] text-gray-400 uppercase font-bold">
+          //       Pressione ESC para sair
+          //     </div>
+          //   </div>
+          // </div>
+
+          <div className="mt-4 max-h-[400px] overflow-y-auto">
+  {searchResults.map((p) => (
+    <div
+      key={p.id}
+      className="flex justify-between items-center p-4 border-b hover:bg-gray-50"
+    >
+      <div>
+        <p className="font-bold text-lg uppercase">{p.name}</p>
+        <p className="text-sm text-gray-400 font-mono">{p.barCode ?? ""}</p>
+      </div>
+      <div className="text-right">
+        <p className="text-2xl font-black text-blue-700">
+          {(p.price / 100).toLocaleString("pt-BR", {
+            style: "currency",
+            currency: "BRL",
+          })}
+        </p>
+        <p
+          className={`text-xs font-bold ${
+            p.stock > 0 ? "text-green-500" : "text-red-500"
+          }`}
+        >
+          ESTOQUE: {p.stock}
+        </p>
+
+        {/* Botão para inserir na compra */}
+        <button
+          onClick={() => {
+            addToCart(p);
+            setIsProductSearchOpen(false);
+            setSearchTerm("");
+            setSearchResults([]);
+          }}
+          disabled={p.stock <= 0 || !p.isActive}
+          className={`mt-2 px-3 py-1 rounded text-xs font-bold ${
+            p.stock > 0 && p.isActive
+              ? "bg-green-600 text-white hover:bg-green-500"
+              : "bg-gray-300 text-gray-500 cursor-not-allowed"
+          }`}
+        >
+          Inserir na compra
+        </button>
+      </div>
+    </div>
+  ))}
+  {searchTerm.length > 1 && searchResults.length === 0 && (
+    <p className="text-center py-8 text-gray-400">
+      Nenhum produto encontrado.
+    </p>
+  )}
+</div>
+
         )}
 
         {/* MODAL DE CONFERÊNCIA DE VALORES (FECHAMENTO) */}

@@ -11,7 +11,7 @@ export async function GET(request: Request,
 
         const searchInput = decodeURIComponent(resolvedParams.code).trim();
 
-        const product = await prisma.product.findFirst({
+        const product = await prisma.product.findMany({
             where: {
                 isActive: true,
                 OR: [
