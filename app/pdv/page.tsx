@@ -1025,74 +1025,74 @@ export default function PDVPage() {
 
         {/* MODAL DE CONSULTA DE PRODUTOS (F1) */}
         {isProductSearchOpen && (
-          // <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-start justify-center z-[200] pt-20 p-4">
-          //   <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden">
-          //     <div className="p-4 bg-blue-600 text-white flex justify-between items-center">
-          //       <h3 className="font-bold uppercase italic">
-          //         🔍 Consulta de Preços
-          //       </h3>
-          //       <button
-          //         onClick={() => {
-          //           setIsProductSearchOpen(false);
-          //           setSearchTerm("");
-          //           setSearchResults([]);
-          //         }}
-          //         className="text-2xl"
-          //       >
-          //         ✕
-          //       </button>
-          //     </div>
-          //     <div className="p-6">
-          //       <input
-          //         autoFocus
-          //         type="text"
-          //         placeholder="Digite o nome ou bipe o código..."
-          //         className="w-full border-2 border-blue-100 rounded-xl p-4 text-2xl outline-none focus:border-blue-600 uppercase"
-          //         value={searchTerm}
-          //         onChange={(e) => handleProductLookup(e.target.value)}
-          //       />
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-start justify-center z-[200] pt-20 p-4">
+            <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden">
+              <div className="p-4 bg-blue-600 text-white flex justify-between items-center">
+                <h3 className="font-bold uppercase italic">
+                  🔍 Consulta de Preços
+                </h3>
+                <button
+                  onClick={() => {
+                    setIsProductSearchOpen(false);
+                    setSearchTerm("");
+                    setSearchResults([]);
+                  }}
+                  className="text-2xl"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="p-6">
+                <input
+                  autoFocus
+                  type="text"
+                  placeholder="Digite o nome ou bipe o código..."
+                  className="w-full border-2 border-blue-100 rounded-xl p-4 text-2xl outline-none focus:border-blue-600 uppercase"
+                  value={searchTerm}
+                  onChange={(e) => handleProductLookup(e.target.value)}
+                />
 
-          //       <div className="mt-4 max-h-[400px] overflow-y-auto">
-          //         {searchResults.map((p) => (
-          //           <div
-          //             key={p.id}
-          //             className="flex justify-between items-center p-4 border-b hover:bg-gray-50"
-          //           >
-          //             <div>
-          //               <p className="font-bold text-lg uppercase">{p.name}</p>
-          //               <p className="text-sm text-gray-400 font-mono">
-          //                 {p.barCode}
-          //               </p>
-          //             </div>
-          //             <div className="text-right">
-          //               <p className="text-2xl font-black text-blue-700">
-          //                 {(p.price / 100).toLocaleString("pt-BR", {
-          //                   style: "currency",
-          //                   currency: "BRL",
-          //                 })}
-          //               </p>
-          //               <p
-          //                 className={`text-xs font-bold ${p.stock > 0 ? "text-green-500" : "text-red-500"
-          //                   }`}
-          //               >
-          //                 ESTOQUE: {p.stock}
-          //               </p>
-          //             </div>
-          //           </div>
-          //         ))}
-          //         {searchTerm.length > 1 && searchResults.length === 0 && (
-          //           <p className="text-center py-8 text-gray-400">
-          //             Nenhum produto encontrado.
-          //           </p>
-          //         )}
-          //       </div>
-          //     </div>
-          //     <div className="p-4 bg-gray-50 text-center text-[10px] text-gray-400 uppercase font-bold">
-          //       Pressione ESC para sair
-          //     </div>
-          //   </div>
-          // </div>
-
+                <div className="mt-4 max-h-[400px] overflow-y-auto">
+                  {searchResults.map((p) => (
+                    <div
+                      key={p.id}
+                      className="flex justify-between items-center p-4 border-b hover:bg-gray-50"
+                    >
+                      <div>
+                        <p className="font-bold text-lg uppercase">{p.name}</p>
+                        <p className="text-sm text-gray-400 font-mono">
+                          {p.barCode}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-2xl font-black text-blue-700">
+                          {(p.price / 100).toLocaleString("pt-BR", {
+                            style: "currency",
+                            currency: "BRL",
+                          })}
+                        </p>
+                        <p
+                          className={`text-xs font-bold ${p.stock > 0 ? "text-green-500" : "text-red-500"
+                            }`}
+                        >
+                          ESTOQUE: {p.stock}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                  {searchTerm.length > 1 && searchResults.length === 0 && (
+                    <p className="text-center py-8 text-gray-400">
+                      Nenhum produto encontrado.
+                    </p>
+                  )}
+                </div>
+              </div>
+              <div className="p-4 bg-gray-50 text-center text-[10px] text-gray-400 uppercase font-bold">
+                Pressione ESC para sair
+              </div>
+            </div>
+          </div>
+        )}:
           <div className="mt-4 max-h-[400px] overflow-y-auto">
   {searchResults.map((p) => (
     <div
@@ -1144,9 +1144,6 @@ export default function PDVPage() {
     </p>
   )}
 </div>
-
-        )}
-
         {/* MODAL DE CONFERÊNCIA DE VALORES (FECHAMENTO) */}
         {modalType === "FECHAMENTO" && isCashModalOpen && (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[250] p-4">
