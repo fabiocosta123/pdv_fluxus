@@ -91,7 +91,8 @@ export const SaleReceipt = ({ lastSale }: ReceiptProps) => {
       </div>
 
       <div className="mt-4 text-center text-[10px] border-t border-dashed border-black pt-2 uppercase">
-        <p>Cupom Não Fiscal</p>
+        <p>Desenvolvido por Fluxus Technology</p>
+        <p>(13) 99628-5971</p>
         <p>Obrigado pela preferência!</p>
       </div>
     </div>
