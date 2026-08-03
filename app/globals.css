@@ -44,6 +44,13 @@ body {
     size: auto;
   }
 
+  @media print {
+  @page {
+    margin: 0;
+    size: 58mm auto;
+  }
+}
+
   /* Esconde TUDO por padrão */
   body * {
     visibility: hidden;

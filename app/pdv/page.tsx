@@ -44,6 +44,35 @@ export default function PDVPage() {
   >("SANGRIA");
   const [isProductSearchOpen, setIsProductSearchOpen] = useState(false);
 
+  // impressão
+  const [printSize, setPrintSize] = useState<"58mm" | "80mm">(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("pos_print_size");
+      return (saved === "58mm" || saved === "80mm") ? saved : "80mm";
+    }
+    return "80mm";
+  });
+
+  const printerStyles = {
+    "58mm": {
+      width: "w-[58mm]",
+      text: "text-[10px]",
+      headerText: "text-xs",
+      maxChars: "max-w-[110px]",
+    },
+    "80mm": {
+      width: "w-[80mm]",
+      text: "text-xs",
+      headerText: "text-sm",
+      maxChars: "max-w-[180px]",
+    },
+  }[printSize];
+
+  const handlePrintSizeChange = (size: "58mm" | "80mm") => {
+    setPrintSize(size);
+    localStorage.setItem("pos_print_size", size);
+  };
+
   const [isCashierOpen, setIsCashierOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [searchResults, setSearchResults] = useState<Product[]>([]);
@@ -935,93 +964,108 @@ export default function PDVPage() {
         <SaleReceipt lastSale={lastSale} />
 
         {/* Área de Impressão do Fechamento (Só renderiza se o summary existir) */}
+        {/* Área de Impressão do Fechamento (Suporte dinâmico para 58mm e 80mm) */}
         {cashierSummary && (
-          <div
-            id="printable-area"
-            className="print-area hidden print:block text-black w-[80mm]"
-          >
-            <div className="text-center border-b-2 border-black pb-2 mb-2">
-              <h2 className="text-xl font-bold uppercase">
-                Resumo de Fechamento
-              </h2>
-              <p className="text-sm">
-                {new Date(cashierSummary.closedAt).toLocaleString()}
-              </p>
-            </div>
+          <>
+            {/* 1. Injeta a regra de tamanho de página do navegador para não cortar margens */}
+            <style jsx global>{`
+              @media print {
+                @page {
+                  size: ${printSize} auto;
+                  margin: 0;
+                }
+              }
+            `}</style>
 
-            <div className="space-y-1">
-              {Object.entries(cashierSummary.salesByMethod).map(
-                ([method, value]: any) => (
-                  <div
-                    key={method}
-                    className="flex justify-between font-mono text-sm"
-                  >
-                    <span>{method}:</span>
-                    <span>
-                      {(value / 100).toLocaleString("pt-BR", {
-                        style: "currency",
-                        currency: "BRL",
-                      })}
-                    </span>
-                  </div>
-                ),
-              )}
-              <div className="flex justify-between font-mono text-sm font-bold border-t border-black pt-1">
-                <span>TOTAL VENDIDO:</span>
-                <span>
-                  {(cashierSummary.totalSold / 100).toLocaleString("pt-BR", {
-                    style: "currency",
-                    currency: "BRL",
-                  })}
-                </span>
+            {/* 2. Container principal com largura e fonte dinâmicas */}
+            <div
+              id="printable-area"
+              className={`print-area hidden print:block text-black mx-auto p-[2mm] font-mono leading-tight bg-white ${printerStyles.width} ${printerStyles.text}`}
+            >
+              <div className="text-center border-b-2 border-black pb-2 mb-2">
+                <h2 className={`font-bold uppercase tracking-tight ${printerStyles.headerText}`}>
+                  Resumo de Fechamento
+                </h2>
+                <p className="text-[9px]">
+                  {new Date(cashierSummary.closedAt).toLocaleString("pt-BR")}
+                </p>
               </div>
-            </div>
 
-            <div className="mt-4 border-t border-black pt-2">
-              <p className="font-bold text-xs uppercase mb-1">
-                Conferência de Dinheiro:
-              </p>
-              <div className="flex justify-between font-mono text-sm">
-                <span>ESPERADO:</span>
-                <span>
-                  {(cashierSummary.moneyExpected / 100).toLocaleString(
-                    "pt-BR",
-                    { style: "currency", currency: "BRL" },
-                  )}
-                </span>
+              <div className="space-y-1 my-2">
+                {Object.entries(cashierSummary.salesByMethod).map(
+                  ([method, value]: any) => (
+                    <div
+                      key={method}
+                      className="flex justify-between"
+                    >
+                      <span>{method}:</span>
+                      <span>
+                        {(value / 100).toLocaleString("pt-BR", {
+                          style: "currency",
+                          currency: "BRL",
+                        })}
+                      </span>
+                    </div>
+                  ),
+                )}
+                <div className="flex justify-between font-bold border-t border-black pt-1 mt-1">
+                  <span>TOTAL VENDIDO:</span>
+                  <span>
+                    {(cashierSummary.totalSold / 100).toLocaleString("pt-BR", {
+                      style: "currency",
+                      currency: "BRL",
+                    })}
+                  </span>
+                </div>
               </div>
-              <div className="flex justify-between font-mono text-sm">
-                <span>INFORMADO:</span>
-                <span>
-                  {(
-                    cashierSummary.countedValues["DINHEIRO"] / 100
-                  ).toLocaleString("pt-BR", {
-                    style: "currency",
-                    currency: "BRL",
-                  })}
-                </span>
-              </div>
-              <div className="flex justify-between font-mono text-sm font-black italic">
-                <span>DIFERENÇA:</span>
-                <span>
-                  {(cashierSummary.differences.DINHEIRO / 100).toLocaleString(
-                    "pt-BR",
-                    { style: "currency", currency: "BRL" },
-                  )}
-                </span>
-              </div>
-              <div className="h-20" aria-hidden="true"></div>
-            </div>
 
-            <div className="mt-10 text-center border-t border-black pt-4">
-              <p className="text-[10px] uppercase">
-                __________________________
-              </p>
-              <p className="text-[10px] uppercase font-bold">
-                Assinatura do Operador
-              </p>
+              <div className="mt-3 border-t border-black pt-2 space-y-0.5">
+                <p className="font-bold text-[9px] uppercase mb-1">
+                  Conferência de Dinheiro:
+                </p>
+                <div className="flex justify-between">
+                  <span>ESPERADO:</span>
+                  <span>
+                    {(cashierSummary.moneyExpected / 100).toLocaleString(
+                      "pt-BR",
+                      { style: "currency", currency: "BRL" },
+                    )}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span>INFORMADO:</span>
+                  <span>
+                    {(
+                      cashierSummary.countedValues["DINHEIRO"] / 100
+                    ).toLocaleString("pt-BR", {
+                      style: "currency",
+                      currency: "BRL",
+                    })}
+                  </span>
+                </div>
+                <div className="flex justify-between font-black italic">
+                  <span>DIFERENÇA:</span>
+                  <span>
+                    {(cashierSummary.differences.DINHEIRO / 100).toLocaleString(
+                      "pt-BR",
+                      { style: "currency", currency: "BRL" },
+                    )}
+                  </span>
+                </div>
+              </div>
+
+              {/* Área de assinatura e respiro para o corte da bobina */}
+              <div className="mt-8 text-center border-t border-black pt-3">
+                <p className="text-[9px] uppercase">
+                  __________________________
+                </p>
+                <p className="text-[9px] uppercase font-bold mt-0.5">
+                  Assinatura do Operador
+                </p>
+                <div className="h-8" aria-hidden="true"></div>
+              </div>
             </div>
-          </div>
+          </>
         )}
 
         {/* MODAL DE CONSULTA DE PRODUTOS (F1) */}
@@ -1093,57 +1137,56 @@ export default function PDVPage() {
               </div>
             </div>
           </div>
-        )}:
-          <div className="mt-4 max-h-[400px] overflow-y-auto">
-            {searchResults.map((p) => (
-              <div
-                key={p.id}
-                className="flex justify-between items-center p-4 border-b hover:bg-gray-50"
-              >
-                <div>
-                  <p className="font-bold text-lg uppercase">{p.name}</p>
-                  <p className="text-sm text-gray-400 font-mono">{p.barCode ?? ""}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-2xl font-black text-blue-700">
-                    {(p.price / 100).toLocaleString("pt-BR", {
-                      style: "currency",
-                      currency: "BRL",
-                    })}
-                  </p>
-                  <p
-                    className={`text-xs font-bold ${p.stock > 0 ? "text-green-500" : "text-red-500"
-                      }`}
-                  >
-                    ESTOQUE: {p.stock}
-                  </p>
+        )}
+        <div className="mt-4 max-h-[400px] overflow-y-auto">
+          {searchResults.map((p) => (
+            <div
+              key={p.id}
+              className="flex justify-between items-center p-4 border-b hover:bg-gray-50"
+            >
+              <div>
+                <p className="font-bold text-lg uppercase">{p.name}</p>
+                <p className="text-sm text-gray-400 font-mono">{p.barCode ?? ""}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-2xl font-black text-blue-700">
+                  {(p.price / 100).toLocaleString("pt-BR", {
+                    style: "currency",
+                    currency: "BRL",
+                  })}
+                </p>
+                <p
+                  className={`text-xs font-bold ${p.stock > 0 ? "text-green-500" : "text-red-500"
+                    }`}
+                >
+                  ESTOQUE: {p.stock}
+                </p>
 
-        {/* Botão para inserir na compra */}
-        <button
-          onClick={() => {
-            addToCart(p);
-            setIsProductSearchOpen(false);
-            setSearchTerm("");
-            setSearchResults([]);
-          }}
-          disabled={p.stock <= 0 || !p.isActive}
-          className={`mt-2 px-3 py-1 rounded text-xs font-bold ${
-            p.stock > 0 && p.isActive
-              ? "bg-green-600 text-white hover:bg-green-500"
-              : "bg-gray-300 text-gray-500 cursor-not-allowed"
-          }`}
-        >
-          Inserir na compra
-        </button>
-      </div>
-    </div>
-  ))}
-  {searchTerm.length > 1 && searchResults.length === 0 && (
-    <p className="text-center py-8 text-gray-400">
-      Nenhum produto encontrado.
-    </p>
-  )}
-</div>
+                {/* Botão para inserir na compra */}
+                <button
+                  onClick={() => {
+                    addToCart(p);
+                    setIsProductSearchOpen(false);
+                    setSearchTerm("");
+                    setSearchResults([]);
+                  }}
+                  disabled={p.stock <= 0 || !p.isActive}
+                  className={`mt-2 px-3 py-1 rounded text-xs font-bold ${p.stock > 0 && p.isActive
+                    ? "bg-green-600 text-white hover:bg-green-500"
+                    : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                    }`}
+                >
+                  Inserir na compra
+                </button>
+              </div>
+            </div>
+          ))}
+          {searchTerm.length > 1 && searchResults.length === 0 && (
+            <p className="text-center py-8 text-gray-400">
+              Nenhum produto encontrado.
+            </p>
+          )}
+        </div>
         {/* MODAL DE CONFERÊNCIA DE VALORES (FECHAMENTO) */}
         {modalType === "FECHAMENTO" && isCashModalOpen && (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[250] p-4">
