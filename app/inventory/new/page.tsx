@@ -60,7 +60,7 @@ export default function NewInventoryPage() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || "Erro ao criar produto");
+        throw new Error(errorData.error || "Erro ao criar produto");
       }
 
       toast.success("Produto cadastrado com sucesso!");

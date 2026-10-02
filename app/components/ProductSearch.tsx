@@ -26,7 +26,9 @@ export default function ProductSearch({ onAddToCart }: ProductSearchProps) {
 
     const timeout = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/products/${encodeURIComponent(query)}`);
+        const res = await fetch(
+          `/api/products/search/${encodeURIComponent(query)}`,
+        );
         if (res.ok) {
           const data = await res.json();
           setResults(Array.isArray(data) ? data : [data]);

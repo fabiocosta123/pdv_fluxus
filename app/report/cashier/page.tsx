@@ -2,6 +2,15 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import type { CashierReport } from "@/modules/cashier/types";
+import {
+  CONFERENCE_METHODS,
+  brokenMethods,
+  cashDrawerLines,
+  differenceLabel,
+  expectedAmount,
+} from "@/modules/cashier/conference";
 import {
   ArrowLeft,
   Printer,
@@ -12,8 +21,15 @@ import {
 } from "lucide-react";
 
 // --- Sub-componente para o Card de Relatório ---
-const ReportCard = ({ report, formatCurrency }: { report: any, formatCurrency: Function }) => {
-  const hasDiff = report.differences.DINHEIRO !== 0;
+const ReportCard = ({
+  report,
+  formatCurrency,
+}: {
+  report: CashierReport;
+  formatCurrency: (value: number) => string;
+}) => {
+  const breaks = brokenMethods(report);
+  const hasDiff = breaks.length > 0;
   const closedDate = new Date(report.closedAt);
 
   return (
@@ -57,15 +73,89 @@ const ReportCard = ({ report, formatCurrency }: { report: any, formatCurrency: F
               </p>
               {hasDiff ? <AlertCircle className="w-3 h-3 text-red-500" /> : <CheckCircle2 className="w-3 h-3 text-green-600" />}
             </div>
-            <p className={`text-xl font-black ${hasDiff ? "text-red-600" : "text-green-700"}`}>
-              {formatCurrency(report.differences.DINHEIRO)}
-            </p>
+            {hasDiff ? (
+              <ul className="space-y-1">
+                {breaks.map((method) => (
+                  <li key={method}>
+                    <p className="text-[10px] font-black uppercase text-red-500">{method}</p>
+                    <p className="text-xl font-black text-red-600">
+                      {differenceLabel(report.differences[method])}{" "}
+                      {formatCurrency(Math.abs(report.differences[method]))}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-xl font-black text-green-700">Sem quebra</p>
+            )}
           </div>
         </div>
+
+        <div className="mt-6 overflow-x-auto">
+          <p className="text-[10px] font-black uppercase text-gray-400 mb-2">
+            Conferência por meio
+          </p>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-[10px] uppercase tracking-widest text-gray-400">
+                <th className="text-left font-black pb-2">Meio</th>
+                <th className="text-right font-black pb-2">Esperado</th>
+                <th className="text-right font-black pb-2">Contado</th>
+                <th className="text-right font-black pb-2">Diferença</th>
+              </tr>
+            </thead>
+            <tbody>
+              {CONFERENCE_METHODS.map((method) => {
+                const diff = report.differences[method];
+                const broken = diff !== 0;
+                return (
+                  <tr key={method} className={broken ? "bg-red-50" : ""}>
+                    <td className="py-2 pr-3 font-bold text-gray-800">{method}</td>
+                    <td className="py-2 text-right text-gray-600">
+                      {formatCurrency(expectedAmount(report, method))}
+                    </td>
+                    <td className="py-2 text-right text-gray-600">
+                      {formatCurrency(report.countedValues[method])}
+                    </td>
+                    <td className={`py-2 text-right font-black ${broken ? "text-red-600" : "text-green-700"}`}>
+                      {broken
+                        ? `${differenceLabel(diff)} ${formatCurrency(Math.abs(diff))}`
+                        : "OK"}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        {report.differences.DINHEIRO !== 0 && (
+          <div className="mt-4 rounded-xl bg-red-50 border border-red-100 p-4">
+            <p className="text-[10px] font-black uppercase text-red-500 mb-2">
+              Composição do dinheiro esperado
+            </p>
+            <div className="space-y-1">
+              {cashDrawerLines(report).map((line) => (
+                <div key={line.label} className="flex justify-between text-sm text-gray-700">
+                  <span>{line.label}</span>
+                  <span className="font-bold">{formatCurrency(line.value)}</span>
+                </div>
+              ))}
+              <div className="flex justify-between text-sm font-black text-gray-900 border-t border-red-100 pt-2 mt-2">
+                <span>Esperado na gaveta</span>
+                <span>{formatCurrency(report.moneyExpected)}</span>
+              </div>
+              <div className="flex justify-between text-sm font-black text-gray-900">
+                <span>Contado</span>
+                <span>{formatCurrency(report.countedValues.DINHEIRO)}</span>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="bg-gray-50/50 px-6 py-4 border-t flex flex-wrap gap-8">
-        {Object.entries(report.salesByMethod).map(([method, value]: any) => (
+        {Object.entries(report.salesByMethod).map(([method, value]) => (
           <div key={method}>
             <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">{method}</span>
             <p className="text-sm font-bold text-gray-600">{formatCurrency(value)}</p>
@@ -85,19 +175,27 @@ const StatBox = ({ label, value }: { label: string, value: string }) => (
 
 // --- Componente Principal ---
 export default function CashierReports() {
-  const [history, setHistory] = useState<any[]>([]);
+  const [history, setHistory] = useState<CashierReport[]>([]);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const router = useRouter();
 
   useEffect(() => {
-    const saved = localStorage.getItem("closing_history");
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      setHistory(parsed.sort((a: any, b: any) => 
-        new Date(b.closedAt).getTime() - new Date(a.closedAt).getTime()
-      ));
-    }
+    let active = true;
+
+    fetch("/api/cashier/reports")
+      .then(async (response) => {
+        if (!response.ok) throw new Error();
+        const data = (await response.json()) as CashierReport[];
+        if (active) setHistory(data);
+      })
+      .catch(() => {
+        if (active) toast.error("Não foi possível carregar os fechamentos");
+      });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   // Filtro inteligente usando useMemo para performance
@@ -168,7 +266,7 @@ export default function CashierReports() {
         </div>
       </div>
 
-      <main className="max-w-7xl mx-auto px-4 py-8">
+      <main id="cashier-reports" className="max-w-7xl mx-auto px-4 py-8">
         {filteredHistory.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 bg-white rounded-3xl border-2 border-dashed border-gray-200">
             {history.length === 0 ? (

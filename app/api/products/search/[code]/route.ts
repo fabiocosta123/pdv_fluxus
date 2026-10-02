@@ -1,42 +1,24 @@
-import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { NextResponse } from "next/server";
+import { fail } from "@/lib/http";
+import { searchProducts } from "@/modules/catalog/service";
 
+export async function GET(
+  _request: Request,
+  { params }: { params: Promise<{ code: string }> },
+) {
+  try {
+    const { code } = await params;
+    const products = await searchProducts(code);
 
-export async function GET(request: Request, 
-    { params }: { params: Promise<{ code: string }> }
-)
-{
-    try {
-        const resolvedParams = await params;      
-
-        const searchInput = decodeURIComponent(resolvedParams.code).trim();
-
-        const product = await prisma.product.findMany({
-            where: {
-                isActive: true,
-                OR: [
-                    { barCode: searchInput },
-                    { name : {
-                        contains: searchInput,
-                        mode: 'insensitive'
-                    }}
-                ]
-            }
-        });
-
-        if (!product) {
-            return NextResponse.json(
-                { message: 'Produto não encontrado no estoque' },
-                { status: 404 }
-            );
-        }
-
-        return NextResponse.json(product, { status: 200 });
-    } catch (error) {
-        console.error('Erro ao buscar o produto:', error);      
-        return NextResponse.json(
-            { message: 'Erro ao buscar o produto' },
-            { status: 500 }
-        );
+    if (products.length === 0) {
+      return NextResponse.json(
+        { error: "Produto não encontrado no estoque" },
+        { status: 404 },
+      );
     }
+
+    return NextResponse.json(products);
+  } catch (error) {
+    return fail(error);
+  }
 }

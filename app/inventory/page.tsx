@@ -61,7 +61,7 @@ export default function InventoryPage() {
         toast.success(currentStatus ? "Produto inativado" : "Produto ativado");
         setProducts(
           products.map((p) =>
-            p.id === id ? { ...p, active: !currentStatus } : p
+            p.id === id ? { ...p, isActive: !currentStatus } : p
           )
         );
         fetchInventory();

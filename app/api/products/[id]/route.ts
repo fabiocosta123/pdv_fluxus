@@ -1,51 +1,26 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma"; 
+import { fail, readJson } from "@/lib/http";
+import { getProduct, updateProduct } from "@/modules/catalog/service";
 
-// GET: Busca o produto para preencher o formulário de edição
-export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> } 
-) {
+type RouteContext = { params: Promise<{ id: string }> };
+
+export async function GET(_request: Request, { params }: RouteContext) {
   try {
-    const { id } = await params; 
-    const product = await prisma.product.findUnique({
-      where: { id },
-    });
-
-    if (!product) {
-      return NextResponse.json({ error: "Produto não encontrado" }, { status: 404 });
-    }
-
+    const { id } = await params;
+    const product = await getProduct(id);
     return NextResponse.json(product);
   } catch (error) {
-    return NextResponse.json({ error: "Erro ao buscar produto" }, { status: 500 });
+    return fail(error);
   }
 }
 
-// PATCH: Atualiza os dados do produto
-export async function PATCH(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> } 
-) {
-  try {    
-    const { id } = await params; 
-    const body = await request.json();
-    const { name, price, costPrice, stock, barCode } = body;
-
-    const updatedProduct = await prisma.product.update({
-      where: { id },
-      data: {
-        name,
-        price,
-        costPrice,
-        stock,
-        barCode,
-      },
-    });
-
-    return NextResponse.json(updatedProduct);
+export async function PATCH(request: Request, { params }: RouteContext) {
+  try {
+    const { id } = await params;
+    const body = await readJson(request);
+    const product = await updateProduct(id, body);
+    return NextResponse.json(product);
   } catch (error) {
-    console.error("Erro na API:", error);
-    return NextResponse.json({ error: "Erro ao atualizar produto" }, { status: 500 });
+    return fail(error);
   }
 }

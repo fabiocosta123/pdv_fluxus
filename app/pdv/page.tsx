@@ -8,6 +8,13 @@ import { CartTable } from "./components/CartTable";
 import { PaymentModal } from "./components/PaymentModal";
 import { SaleReceipt } from "@/app/components/SaleReceipt";
 import { OpenCashierModal } from "../components/OpenCashierModal";
+import type { CashierReport } from "@/modules/cashier/types";
+import {
+  CONFERENCE_METHODS,
+  cashDrawerLines,
+  differenceLabel,
+  expectedAmount,
+} from "@/modules/cashier/conference";
 import { ArrowLeft } from "lucide-react";
 import ProductSearch from "../components/ProductSearch";
 
@@ -74,10 +81,11 @@ export default function PDVPage() {
   };
 
   const [isCashierOpen, setIsCashierOpen] = useState(false);
+  const [cashierReady, setCashierReady] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [searchResults, setSearchResults] = useState<Product[]>([]);
 
-  const [cashierSummary, setCashierSummary] = useState<any>(null);
+  const [cashierSummary, setCashierSummary] = useState<CashierReport | null>(null);
   const [countedValues, setCountedValues] = useState<{ [key: string]: number }>(
     {},
   );
@@ -95,22 +103,49 @@ export default function PDVPage() {
   const remaingBalance = Math.max(0, total - totalPaid);
   const change = totalPaid > total ? totalPaid - total : 0;
 
-  // checa abertura modal de abertura de caixa
   useEffect(() => {
-    const savedCashier = localStorage.getItem("cashier_status");
-    if (savedCashier === "open") {
-      setIsCashierOpen(true);
-    }
+    let active = true;
+
+    fetch("/api/cashier/session")
+      .then(async (response) => {
+        if (!response.ok) {
+          if (active) setIsCashierOpen(false);
+          return;
+        }
+        const session = await response.json();
+        if (active) setIsCashierOpen(Boolean(session));
+      })
+      .catch(() => {
+        if (active) setIsCashierOpen(false);
+      })
+      .finally(() => {
+        if (active) setCashierReady(true);
+      });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
-  // Função para processar a abertura
-  const handleOpenCashier = (initialValue: number) => {
-    // Aqui futuramente você enviará para sua API
-    localStorage.setItem("cashier_status", "open");
-    localStorage.setItem("cashier_opening_value", initialValue.toString());
+  const handleOpenCashier = async (initialValue: number) => {
+    try {
+      const response = await fetch("/api/cashier/session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ openingValue: initialValue }),
+      });
 
-    setIsCashierOpen(true);
-    toast.success("Caixa aberto com sucesso!");
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        toast.error(data.error || "Não foi possível abrir o caixa");
+        return;
+      }
+
+      setIsCashierOpen(true);
+      toast.success("Caixa aberto com sucesso!");
+    } catch {
+      toast.error("Sem conexão para abrir o caixa");
+    }
   };
 
   // Função de busca para o modal F1
@@ -155,57 +190,6 @@ export default function PDVPage() {
     [total],
   );
 
-  // fechamento de caixa
-  const getCashierSummary = useCallback(() => {
-    // valor de abertura
-    const openingValue = Number(
-      localStorage.getItem("cashier_opening_value") || 0,
-    );
-
-    //histórico de movimentações (Aportes e Sangrias)
-    const history = JSON.parse(localStorage.getItem("cashier_history") || "[]");
-    const movements = history.reduce(
-      (acc: any, curr: any) => {
-        if (curr.type === "APORTE") acc.totalAporte += curr.value;
-        if (curr.type === "SANGRIA") acc.totalSangria += curr.value;
-        return acc;
-      },
-      { totalAporte: 0, totalSangria: 0 },
-    );
-
-    // pega vendas do localStorage
-    const turnSales = JSON.parse(
-      localStorage.getItem("current_turn_sales") || "[]",
-    );
-
-    const salesByMethod = turnSales.reduce((acc: any, sale: any) => {
-      sale.payments.forEach((p: any) => {
-        acc[p.method] = (acc[p.method] || 0) + p.value;
-      });
-      return acc;
-    }, {});
-
-    const totalSold = Object.values(salesByMethod).reduce(
-      (a: any, b: any) => a + b,
-      0,
-    ) as number;
-
-    // Abertura + Vendas em Dinheiro + Aportes - Sangrias
-    const moneyExpected =
-      openingValue +
-      (salesByMethod["DINHEIRO"] || 0) +
-      movements.totalAporte -
-      movements.totalSangria;
-
-    return {
-      openingValue,
-      ...movements,
-      salesByMethod,
-      totalSold,
-      moneyExpected,
-    };
-  }, []);
-
   // Finaliza venda
   const finalizarVenda = useCallback(async () => {
     if (remaingBalance > 0) return;
@@ -224,6 +208,8 @@ export default function PDVPage() {
       createdAt: saleDate,
     };
 
+    let completed = false;
+
     try {
       const response = await fetch("/api/sales", {
         method: "POST",
@@ -235,23 +221,22 @@ export default function PDVPage() {
         const data = await response.json();
         setLastSale({ id: data.id, ...saleData, date: saleDate });
         toast.success("Venda online realizada!", { id: toastId });
-
-        const currentTurnSales = JSON.parse(
-          localStorage.getItem("current_turn_sales") || "[]",
-        );
-        currentTurnSales.push(saleData);
-        localStorage.setItem(
-          "current_turn_sales",
-          JSON.stringify(currentTurnSales),
-        );
+        completed = true;
+      } else if (response.status >= 500) {
+        throw new Error("offline");
       } else {
-        throw new Error();
+        const data = await response.json().catch(() => ({}));
+        toast.error(data.error || "Não foi possível concluir a venda", {
+          id: toastId,
+        });
       }
-    } catch (error) {
+    } catch {
       const vendaOff = handleOfflineSave(saleData);
       setLastSale({ id: vendaOff.idTemporario, ...saleData, date: saleDate });
       toast.warning("Venda salva no notebook (Offline)!", { id: toastId });
+      completed = true;
     } finally {
+      if (!completed) return;
       // delay para o React renderizar o conteúdo do cupom escondido
       setTimeout(() => {
         window.print();
@@ -283,55 +268,43 @@ export default function PDVPage() {
     });
   }, [cart.length]);
 
-  // compara o que foi digitado com o que tem em caixa
-  const handleFinalCashierProcess = useCallback(() => {
+  const handleFinalCashierProcess = useCallback(async () => {
     setLastSale(null);
-    const summary = getCashierSummary();
-    // Calcula as diferenças
-    const differences = {
-      DINHEIRO: (countedValues["DINHEIRO"] || 0) - summary.moneyExpected,
-      DEBITO:
-        (countedValues["DÉBITO"] || 0) - (summary.salesByMethod["DÉBITO"] || 0),
-      CREDITO:
-        (countedValues["CRÉDITO"] || 0) -
-        (summary.salesByMethod["CRÉDITO"] || 0),
-      PIX: (countedValues["PIX"] || 0) - (summary.salesByMethod["PIX"] || 0),
-    };
 
-    const finalReport = {
-      ...summary,
-      countedValues,
-      differences,
-      closedAt: new Date().toISOString(),
-    };
+    try {
+      const response = await fetch("/api/cashier/session/close", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          countedMoney: countedValues["DINHEIRO"] || 0,
+          countedDebit: countedValues["DÉBITO"] || 0,
+          countedCredit: countedValues["CRÉDITO"] || 0,
+          countedPix: countedValues["PIX"] || 0,
+        }),
+      });
 
-    // seta o estado para o componente de impressão ler os dados
-    setCashierSummary(finalReport);
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        toast.error(data.error || "Não foi possível fechar o caixa");
+        return;
+      }
 
-    // Salva no histórico de fechamentos
-    const closeHistory = JSON.parse(
-      localStorage.getItem("closing_history") || "[]",
-    );
-    closeHistory.push(finalReport);
-    localStorage.setItem("closing_history", JSON.stringify(closeHistory));
-
-    toast.success("Caixa fechado! Imprimindo resumo...");
-
-    // Aguarda o React atualizar o DOM com o resumo antes de imprimir
-    setTimeout(() => {
-      window.print();
-
-      // Limpa os dados do turno atual para o próximo dia
-      localStorage.removeItem("cashier_status");
-      localStorage.removeItem("current_turn_sales");
-      localStorage.removeItem("cashier_opening_value");
-      localStorage.removeItem("cashier_history");
+      const finalReport = await response.json();
+      setCashierSummary(finalReport);
+      setIsCashierOpen(false);
+      setIsCashModalOpen(false);
+      toast.success("Caixa fechado! Imprimindo resumo...");
 
       setTimeout(() => {
-        router.push("/");
-      }, 500);
-    }, 1000);
-  }, [countedValues, getCashierSummary]);
+        window.print();
+        setTimeout(() => {
+          router.push("/");
+        }, 500);
+      }, 1000);
+    } catch {
+      toast.error("Sem conexão para fechar o caixa");
+    }
+  }, [countedValues, router]);
 
   // atalhos teclado com travas de segurança
   const handleShortcuts = useCallback(
@@ -627,17 +600,27 @@ export default function PDVPage() {
     // busca na api se não achou no cache ou se tem internet
     try {
       const response = await fetch(
-        `/api/products/${encodeURIComponent(codeToSearch)}`,
+        `/api/products/search/${encodeURIComponent(codeToSearch)}`,
       );
       if (response.ok) {
-        const apiProduct = await response.json();
+        const data = await response.json();
+        const list: Product[] = Array.isArray(data) ? data : [data];
+        const exact = list.find(
+          (item) =>
+            (item.barCode ?? "").toLowerCase() === codeToSearch.toLowerCase(),
+        );
+        const apiProduct = exact ?? (list.length === 1 ? list[0] : undefined);
 
-        if (isScaleLabel) {
-          const productUnitPrice = apiProduct.price / 100;
-          quantityToLoad = priceFromLabel / productUnitPrice;
+        if (!apiProduct) {
+          toast.error("Vários produtos encontrados. Use F1 para escolher.");
+        } else {
+          if (isScaleLabel) {
+            const productUnitPrice = apiProduct.price / 100;
+            quantityToLoad = priceFromLabel / productUnitPrice;
+          }
+
+          addToCart(apiProduct, quantityToLoad);
         }
-
-        addToCart(apiProduct, quantityToLoad);
       } else {
         toast.error("Produto não encontrado");
       }
@@ -720,43 +703,33 @@ export default function PDVPage() {
       value: number,
       obs: string,
     ) => {
-      const movementData = {
-        id: `MOV-${Date.now()}`,
-        type,
-        value,
-        description: obs,
-        createdAt: new Date().toISOString(),
-      };
+      if (type === "FECHAMENTO") return;
 
       try {
-        //Salva no histórico local (para o fechamento do dia)
-        const history = JSON.parse(
-          localStorage.getItem("cashier_history") || "[]",
-        );
-        history.push(movementData);
-        localStorage.setItem("cashier_history", JSON.stringify(history));
+        const response = await fetch("/api/cashier/movements", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type,
+            value,
+            note: obs,
+          }),
+        });
 
-        // Lógica específica para Fechamento
-        if (type === "FECHAMENTO") {
-          localStorage.removeItem("cashier_status"); // Fecha o caixa no sistema
-          setIsCashierOpen(false); // Bloqueia a tela do PDV
-          toast.success("Caixa fechado com sucesso!");
-
-          // Opcional: imprimir resumo de fechamento
-          window.print();
-        } else {
-          toast.success(
-            `${type} de ${(value / 100).toLocaleString("pt-BR", {
-              style: "currency",
-              currency: "BRL",
-            })} registrado!`,
-          );
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({}));
+          toast.error(data.error || "Erro ao processar movimentação");
+          return;
         }
 
-        // 3. Tenta enviar para o servidor (Opcional por enquanto)
-        // await fetch("/api/cashier/movements", { method: "POST", body: JSON.stringify(movementData) });
-      } catch (error) {
-        toast.error("Erro ao processar movimentação");
+        toast.success(
+          `${type} de ${(value / 100).toLocaleString("pt-BR", {
+            style: "currency",
+            currency: "BRL",
+          })} registrado!`,
+        );
+      } catch {
+        toast.error("Sem conexão para registrar a movimentação");
       } finally {
         setIsCashModalOpen(false);
       }
@@ -787,7 +760,7 @@ export default function PDVPage() {
         </h1>
       </div>
       {/* Se o caixa não estiver aberto, mostra apenas o modal de abertura */}
-      {!isCashierOpen && (
+      {cashierReady && !isCashierOpen && (
         <OpenCashierModal
           isOpen={true}
           onOpen={handleOpenCashier}
@@ -954,7 +927,7 @@ export default function PDVPage() {
         )}
 
         <CashierModal
-          isOpen={isCashModalOpen}
+          isOpen={isCashModalOpen && modalType !== "FECHAMENTO"}
           type={modalType}
           onClose={() => setIsCashModalOpen(false)}
           onConfirm={handleProcessMovement}
@@ -993,7 +966,7 @@ export default function PDVPage() {
 
               <div className="space-y-1 my-2">
                 {Object.entries(cashierSummary.salesByMethod).map(
-                  ([method, value]: any) => (
+                  ([method, value]) => (
                     <div
                       key={method}
                       className="flex justify-between"
@@ -1019,39 +992,66 @@ export default function PDVPage() {
                 </div>
               </div>
 
-              <div className="mt-3 border-t border-black pt-2 space-y-0.5">
+              <div className="mt-3 border-t border-black pt-2 space-y-1">
                 <p className="font-bold text-[9px] uppercase mb-1">
-                  Conferência de Dinheiro:
+                  Conferência
                 </p>
-                <div className="flex justify-between">
-                  <span>ESPERADO:</span>
-                  <span>
-                    {(cashierSummary.moneyExpected / 100).toLocaleString(
-                      "pt-BR",
-                      { style: "currency", currency: "BRL" },
-                    )}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span>INFORMADO:</span>
-                  <span>
-                    {(
-                      cashierSummary.countedValues["DINHEIRO"] / 100
-                    ).toLocaleString("pt-BR", {
-                      style: "currency",
-                      currency: "BRL",
-                    })}
-                  </span>
-                </div>
-                <div className="flex justify-between font-black italic">
-                  <span>DIFERENÇA:</span>
-                  <span>
-                    {(cashierSummary.differences.DINHEIRO / 100).toLocaleString(
-                      "pt-BR",
-                      { style: "currency", currency: "BRL" },
-                    )}
-                  </span>
-                </div>
+                {CONFERENCE_METHODS.map((method) => {
+                  const diff = cashierSummary.differences[method];
+                  if (
+                    expectedAmount(cashierSummary, method) === 0 &&
+                    cashierSummary.countedValues[method] === 0
+                  ) {
+                    return null;
+                  }
+
+                  return (
+                    <div key={method} className="border-b border-black/20 pb-1">
+                      <div className="flex justify-between font-bold">
+                        <span>{method}</span>
+                        <span>
+                          {diff === 0
+                            ? "OK"
+                            : `${differenceLabel(diff)} ${(Math.abs(diff) / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}`}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>ESPERADO</span>
+                        <span>
+                          {(expectedAmount(cashierSummary, method) / 100).toLocaleString("pt-BR", {
+                            style: "currency",
+                            currency: "BRL",
+                          })}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>CONTADO</span>
+                        <span>
+                          {(cashierSummary.countedValues[method] / 100).toLocaleString("pt-BR", {
+                            style: "currency",
+                            currency: "BRL",
+                          })}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+                {cashierSummary.differences.DINHEIRO !== 0 && (
+                  <div className="pt-1">
+                    <p className="font-bold text-[9px] uppercase">Dinheiro esperado</p>
+                    {cashDrawerLines(cashierSummary).map((line) => (
+                      <div key={line.label} className="flex justify-between">
+                        <span>{line.label.toUpperCase()}</span>
+                        <span>
+                          {(line.value / 100).toLocaleString("pt-BR", {
+                            style: "currency",
+                            currency: "BRL",
+                          })}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Área de assinatura e respiro para o corte da bobina */}

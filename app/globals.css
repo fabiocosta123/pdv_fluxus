@@ -153,8 +153,17 @@ body {
   }
 
   /* Mostra apenas a div de impressão e seus filhos */
-  .print-area, .print-area * {
+  .print-area, .print-area *,
+  #cashier-reports, #cashier-reports * {
     visibility: visible;
+  }
+
+  #cashier-reports {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    background: white;
   }
 
   /* Força o cupom a ficar no topo da página de impressão */
