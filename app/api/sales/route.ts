@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { fail, readJson } from "@/lib/http";
+import { allow } from "@/lib/session";
 import { createSale } from "@/modules/sales/service";
 
 export async function POST(request: Request) {
   try {
+    await allow(request, "pos");
     const body = await readJson(request);
     const sale = await createSale(body);
     return NextResponse.json(sale, { status: 201 });

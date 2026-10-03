@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { Toaster } from "sonner";
+import { AccessGate } from "./components/AccessGate";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -22,8 +23,8 @@ export default function RootLayout({
       </head>
       {/* O h-screen e overflow-hidden impedem que a página role para fora da visão */}
       <body className={`${inter.className} bg-gray-100 min-h-screen overflow-y-auto`}>
-        <Toaster richColors position="top-right" /> {/* 2. Adicione aqui */}
-        {children}
+        <Toaster richColors position="top-right" />
+        <AccessGate>{children}</AccessGate>
       </body>
     </html>
   );

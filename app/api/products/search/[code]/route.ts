@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
 import { fail } from "@/lib/http";
+import { allow } from "@/lib/session";
 import { searchProducts } from "@/modules/catalog/service";
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ code: string }> },
 ) {
   try {
+    await allow(request, "pos");
     const { code } = await params;
     const products = await searchProducts(code);
 

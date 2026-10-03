@@ -55,6 +55,11 @@ enum ExpenseStatus {
   PAID
 }
 
+enum PrintWidth {
+  MM58
+  MM80
+}
+
 model Product {
   id        String     @id @default(cuid())
   name      String
@@ -196,4 +201,44 @@ model Expense {
   @@index([status, dueDate])
   @@index([paidAt])
   @@index([cashierSessionId])
+}
+
+model StoreSettings {
+  id         String     @id @default("store")
+  tradeName  String     @default("Restaurante Daju")
+  address    String     @default("Rua Meraldo Previdi")
+  cnpj       String     @default("32905822000108")
+  phone      String?
+  footer     String     @default("Obrigado pela preferência!")
+  printWidth PrintWidth @default(MM80)
+  updatedAt  DateTime   @updatedAt
+}
+
+enum UserRole {
+  OPERATOR
+  MANAGER
+  OWNER
+}
+
+model User {
+  id           String        @id @default(cuid())
+  name         String
+  username     String        @unique
+  passwordHash String
+  role         UserRole
+  active       Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  sessions     AuthSession[]
+}
+
+model AuthSession {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }

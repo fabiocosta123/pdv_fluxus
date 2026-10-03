@@ -7,6 +7,8 @@ import { CashierModal } from "../components/CashierModal";
 import { CartTable } from "./components/CartTable";
 import { PaymentModal } from "./components/PaymentModal";
 import { SaleReceipt } from "@/app/components/SaleReceipt";
+import { STORE_DEFAULTS } from "@/modules/settings/defaults";
+import type { StoreSettings } from "@/modules/settings/types";
 import { OpenCashierModal } from "../components/OpenCashierModal";
 import type { CashierReport } from "@/modules/cashier/types";
 import {
@@ -53,14 +55,8 @@ export default function PDVPage() {
   >("SANGRIA");
   const [isProductSearchOpen, setIsProductSearchOpen] = useState(false);
 
-  // impressão
-  const [printSize, setPrintSize] = useState<"58mm" | "80mm">(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("pos_print_size");
-      return (saved === "58mm" || saved === "80mm") ? saved : "80mm";
-    }
-    return "80mm";
-  });
+  const [store, setStore] = useState<StoreSettings>(STORE_DEFAULTS);
+  const [printSize, setPrintSize] = useState<"58mm" | "80mm">(STORE_DEFAULTS.printWidth);
 
   const printerStyles = {
     "58mm": {
@@ -76,11 +72,6 @@ export default function PDVPage() {
       maxChars: "max-w-[180px]",
     },
   }[printSize];
-
-  const handlePrintSizeChange = (size: "58mm" | "80mm") => {
-    setPrintSize(size);
-    localStorage.setItem("pos_print_size", size);
-  };
 
   const [isCashierOpen, setIsCashierOpen] = useState(false);
   const [cashierReady, setCashierReady] = useState(false);
@@ -104,6 +95,15 @@ export default function PDVPage() {
 
   useEffect(() => {
     let active = true;
+
+    fetch("/api/settings")
+      .then(async (response) => {
+        if (!response.ok || !active) return;
+        const settings: StoreSettings = await response.json();
+        setStore(settings);
+        setPrintSize(settings.printWidth);
+      })
+      .catch(() => undefined);
 
     fetch("/api/cashier/session")
       .then(async (response) => {
@@ -1000,7 +1000,7 @@ export default function PDVPage() {
         />
 
         {/* Componente de Impressão Invisível */}
-        <SaleReceipt lastSale={lastSale} />
+        <SaleReceipt lastSale={lastSale} store={store} printWidth={printSize} />
 
         {/* Área de Impressão do Fechamento (Só renderiza se o summary existir) */}
         {/* Área de Impressão do Fechamento (Suporte dinâmico para 58mm e 80mm) */}
@@ -1022,7 +1022,10 @@ export default function PDVPage() {
               className={`print-area hidden print:block text-black mx-auto p-[2mm] font-mono leading-tight bg-white ${printerStyles.width} ${printerStyles.text}`}
             >
               <div className="text-center border-b-2 border-black pb-2 mb-2">
-                <h2 className={`font-bold uppercase tracking-tight ${printerStyles.headerText}`}>
+                <p className={`font-bold uppercase ${printerStyles.headerText}`}>{store.tradeName}</p>
+                <p className="text-[9px]">{store.address}</p>
+                <p className="text-[9px]">CNPJ: {store.cnpj}</p>
+                <h2 className={`font-bold uppercase tracking-tight mt-2 ${printerStyles.headerText}`}>
                   Resumo de Fechamento
                 </h2>
                 <p className="text-[9px]">
@@ -1317,7 +1320,7 @@ export default function PDVPage() {
         )}
         <div>
           {/* ... resto do PDV ... */}
-          {lastSale && <SaleReceipt lastSale={lastSale} />}
+          {lastSale && <SaleReceipt lastSale={lastSale} store={store} printWidth={printSize} />}
         </div>
       </div>
     </>
