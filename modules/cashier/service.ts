@@ -22,6 +22,9 @@ const sessionInclude = {
     where: { status: "COMPLETED" as const },
     include: { payments: true },
   },
+  ledgerEntries: {
+    where: { type: "PAYMENT" as const },
+  },
 } satisfies Prisma.CashierSessionInclude;
 
 type SessionWithRelations = Prisma.CashierSessionGetPayload<{
@@ -29,7 +32,7 @@ type SessionWithRelations = Prisma.CashierSessionGetPayload<{
 }>;
 
 function emptyCounted(): CountedValues {
-  return { DINHEIRO: 0, DÉBITO: 0, CRÉDITO: 0, PIX: 0 };
+  return { DINHEIRO: 0, DÉBITO: 0, CRÉDITO: 0, PIX: 0, CARTEIRA: 0 };
 }
 
 function summarize(session: SessionWithRelations) {
@@ -42,6 +45,12 @@ function summarize(session: SessionWithRelations) {
       const label = paymentMethodLabel(payment.method);
       salesByMethod[label] = (salesByMethod[label] ?? 0) + payment.value;
     }
+  }
+
+  for (const entry of session.ledgerEntries) {
+    if (!entry.method || entry.method === "WALLET") continue;
+    const label = paymentMethodLabel(entry.method);
+    salesByMethod[label] = (salesByMethod[label] ?? 0) + entry.amount;
   }
 
   const totalAporte = session.movements
@@ -78,6 +87,7 @@ function toReport(session: SessionWithRelations): CashierReport {
     DÉBITO: session.countedDebit ?? 0,
     CRÉDITO: session.countedCredit ?? 0,
     PIX: session.countedPix ?? 0,
+    CARTEIRA: session.countedWallet ?? 0,
   };
 
   return {
@@ -89,6 +99,7 @@ function toReport(session: SessionWithRelations): CashierReport {
       DÉBITO: countedValues.DÉBITO - (summary.salesByMethod.DÉBITO ?? 0),
       CRÉDITO: countedValues.CRÉDITO - (summary.salesByMethod.CRÉDITO ?? 0),
       PIX: countedValues.PIX - (summary.salesByMethod.PIX ?? 0),
+      CARTEIRA: countedValues.CARTEIRA - (summary.salesByMethod.CARTEIRA ?? 0),
     },
     closedAt: (session.closedAt ?? session.openedAt).toISOString(),
   };
@@ -205,6 +216,7 @@ export async function closeCashier(input: unknown): Promise<CashierReport> {
         countedDebit: data.countedDebit ?? 0,
         countedCredit: data.countedCredit ?? 0,
         countedPix: data.countedPix ?? 0,
+        countedWallet: data.countedWallet ?? 0,
       },
     });
 

@@ -17,6 +17,7 @@ export const createSaleSchema = z.object({
       }),
     )
     .min(1, "Nenhum pagamento informado"),
+  customerId: z.string().min(1).nullable().optional(),
 });
 
 export type CreateSaleInput = z.infer<typeof createSaleSchema>;

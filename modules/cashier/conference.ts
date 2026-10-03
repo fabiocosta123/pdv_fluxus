@@ -1,6 +1,6 @@
 import type { CashierReport } from "./types";
 
-export const CONFERENCE_METHODS = ["DINHEIRO", "DÉBITO", "CRÉDITO", "PIX"] as const;
+export const CONFERENCE_METHODS = ["DINHEIRO", "DÉBITO", "CRÉDITO", "PIX", "CARTEIRA"] as const;
 
 export type ConferenceMethod = (typeof CONFERENCE_METHODS)[number];
 
@@ -24,11 +24,11 @@ export function cashDrawerLines(report: CashierReport) {
 
   return [
     { label: "Abertura", value: report.openingValue },
-    { label: "Vendas em dinheiro", value: cashSales },
+    { label: "Entradas em dinheiro", value: cashSales },
     { label: "Aportes", value: report.totalAporte },
     { label: "Sangrias", value: -report.totalSangria },
     { label: "Troco devolvido", value: -change },
-  ].filter((line) => line.label === "Abertura" || line.label === "Vendas em dinheiro" || line.value !== 0);
+  ].filter((line) => line.label === "Abertura" || line.label === "Entradas em dinheiro" || line.value !== 0);
 }
 
 export function differenceLabel(cents: number) {

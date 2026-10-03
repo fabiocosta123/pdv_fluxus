@@ -17,6 +17,7 @@ import {
 } from "@/modules/cashier/conference";
 import { ArrowLeft } from "lucide-react";
 import ProductSearch from "../components/ProductSearch";
+import type { CustomerRecord } from "@/modules/customers/types";
 
 
 interface Product {
@@ -90,10 +91,7 @@ export default function PDVPage() {
     {},
   );
 
-  const [customer, setCustomer] = useState<{ name: string; document: string }>({
-    name: "",
-    document: "",
-  });
+  const [customer, setCustomer] = useState<CustomerRecord | null>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -204,7 +202,10 @@ export default function PDVPage() {
       total,
       totalPaid,
       change,
-      customer,
+      customerId: customer?.id ?? null,
+      customer: customer
+        ? { name: customer.name, document: customer.document }
+        : undefined,
       createdAt: saleDate,
     };
 
@@ -244,7 +245,7 @@ export default function PDVPage() {
         setCart([]);
         setPayments([]);
         setIsPaymentModalOpen(false);
-        setCustomer({ name: "", document: "" });
+        setCustomer(null);
         setBarcode("");
 
         setTimeout(() => {
@@ -252,7 +253,7 @@ export default function PDVPage() {
         }, 2000);
       }, 300);
     }
-  }, [cart, payments, total, totalPaid, change, remaingBalance]);
+  }, [cart, payments, total, totalPaid, change, remaingBalance, customer]);
 
   // remove ultimo item
   const removeLastItem = useCallback(() => {
@@ -280,6 +281,7 @@ export default function PDVPage() {
           countedDebit: countedValues["DÉBITO"] || 0,
           countedCredit: countedValues["CRÉDITO"] || 0,
           countedPix: countedValues["PIX"] || 0,
+          countedWallet: countedValues["CARTEIRA"] || 0,
         }),
       });
 
@@ -1197,7 +1199,7 @@ export default function PDVPage() {
                     Conferência de Caixa
                   </h2>
                   <p className="text-xs text-gray-400">
-                    Informe os valores físicos presentes na gaveta
+                    Informe o valor conferido de cada meio
                   </p>
                 </div>
                 <button
@@ -1209,9 +1211,9 @@ export default function PDVPage() {
               </div>
 
               <div className="p-6 space-y-4">
-                {["DINHEIRO", "DÉBITO", "CRÉDITO", "PIX"].map((method) => (
+                {CONFERENCE_METHODS.map((method) => (
                   <div key={method} className="flex items-center gap-4">
-                    <label className="w-24 font-bold text-gray-600 text-sm">
+                    <label className="w-28 font-bold text-gray-600 text-sm">
                       {method}
                     </label>
                     <div className="relative flex-1">

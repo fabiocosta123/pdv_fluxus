@@ -3,6 +3,7 @@ export type CountedValues = {
   DÉBITO: number;
   CRÉDITO: number;
   PIX: number;
+  CARTEIRA: number;
 };
 
 export type CashierReport = {

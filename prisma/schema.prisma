@@ -30,6 +30,16 @@ enum CashMovementType {
   WITHDRAWAL
 }
 
+enum CustomerStatus {
+  ACTIVE
+  BLOCKED
+}
+
+enum LedgerEntryType {
+  CHARGE
+  PAYMENT
+}
+
 model Product {
   id        String     @id @default(cuid())
   name      String
@@ -59,8 +69,10 @@ model Sale {
   updatedAt        DateTime        @updatedAt
   items            SaleItem[]
   payments         Payment[]
+  ledgerEntry      CustomerLedgerEntry?
 
   @@index([cashierSessionId])
+  @@index([customerId])
 }
 
 model SaleItem {
@@ -86,15 +98,37 @@ model Payment {
 }
 
 model Customer {
-  id          String   @id @default(cuid())
+  id          String         @id @default(cuid())
   name        String
-  document    String?  @unique
-  creditLimit Int      @default(0)
-  currentDebt Int      @default(0)
-  status      String   @default("ACTIVE")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  document    String?        @unique
+  birthDate   DateTime?      @db.Date
+  phone       String?
+  creditLimit Int?
+  currentDebt Int            @default(0)
+  status      CustomerStatus @default(ACTIVE)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
   sales       Sale[]
+  ledger      CustomerLedgerEntry[]
+}
+
+model CustomerLedgerEntry {
+  id               String           @id @default(cuid())
+  customerId       String
+  customer         Customer         @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  type             LedgerEntryType
+  amount           Int
+  balanceAfter     Int
+  method           PaymentMethod?
+  note             String?
+  saleId           String?          @unique
+  sale             Sale?            @relation(fields: [saleId], references: [id], onDelete: SetNull)
+  cashierSessionId String?
+  cashierSession   CashierSession?  @relation(fields: [cashierSessionId], references: [id], onDelete: SetNull)
+  createdAt        DateTime         @default(now())
+
+  @@index([customerId, createdAt])
+  @@index([cashierSessionId])
 }
 
 model CashierSession {
@@ -107,8 +141,10 @@ model CashierSession {
   countedDebit  Int?
   countedCredit Int?
   countedPix    Int?
+  countedWallet Int?
   movements     CashMovement[]
   sales         Sale[]
+  ledgerEntries CustomerLedgerEntry[]
 
   @@index([status])
   @@index([closedAt])

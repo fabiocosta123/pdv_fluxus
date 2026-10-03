@@ -1,5 +1,6 @@
 import { SaleStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { chargeCustomerWallet } from "@/modules/customers/service";
 import { AppError } from "@/modules/shared/errors";
 import { parse } from "@/modules/shared/validation";
 import { mapPaymentMethod } from "./payment-method";
@@ -67,6 +68,21 @@ export async function createSale(input: unknown) {
       throw new AppError("Pagamento insuficiente", 400);
     }
 
+    const payments = data.payments.map((payment) => ({
+      method: mapPaymentMethod(payment.method),
+      value: payment.value,
+    }));
+    const walletTotal = payments
+      .filter((payment) => payment.method === "WALLET")
+      .reduce((sum, payment) => sum + payment.value, 0);
+    const change = totalPaid - total;
+    if (change > totalPaid - walletTotal) {
+      throw new AppError("Carteira não gera troco", 400);
+    }
+    if (walletTotal > 0 && !data.customerId) {
+      throw new AppError("Selecione um cliente para vender em carteira", 400);
+    }
+
     const session = await tx.cashierSession.findFirst({
       where: { status: "OPEN" },
       select: { id: true },
@@ -75,25 +91,42 @@ export async function createSale(input: unknown) {
       throw new AppError("Caixa fechado. Abra o caixa antes de vender.", 409);
     }
 
-    return tx.sale.create({
+    if (data.customerId) {
+      const customer = await tx.customer.findUnique({
+        where: { id: data.customerId },
+        select: { id: true },
+      });
+      if (!customer) throw new AppError("Cliente não encontrado", 404);
+    }
+
+    const sale = await tx.sale.create({
       data: {
         total,
         totalPaid,
-        change: totalPaid - total,
+        change,
         status: SaleStatus.COMPLETED,
+        customerId: data.customerId ?? null,
         cashierSessionId: session.id,
         items: { create: lines },
         payments: {
-          create: data.payments.map((payment) => {
-            const method = mapPaymentMethod(payment.method);
-            return {
-              method,
-              amount: payment.value,
-              value: payment.value,
-            };
-          }),
+          create: payments.map((payment) => ({
+            method: payment.method,
+            amount: payment.value,
+            value: payment.value,
+          })),
         },
       },
     });
+
+    if (walletTotal > 0 && data.customerId) {
+      await chargeCustomerWallet(tx, {
+        customerId: data.customerId,
+        amount: walletTotal,
+        saleId: sale.id,
+        cashierSessionId: session.id,
+      });
+    }
+
+    return sale;
   });
 }

@@ -50,11 +50,11 @@ export default function HomePage() {
     },
     {
       title: "Clientes",
-      description: "Cadastro e fidelização",
+      description: "Cadastro, crédito e histórico",
       icon: <Users className="w-8 h-8" />,
       color: "bg-indigo-500",
-      path: "#",
-      status: "soon"
+      path: "/management/customer",
+      status: "active"
     },
     {
       title: "Configurações",

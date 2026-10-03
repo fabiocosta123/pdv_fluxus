@@ -1,5 +1,8 @@
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { MoneyInput } from "../../components/MoneyInput";
-import { useEffect, useCallback } from "react";
+import { formatCpf } from "@/modules/customers/document";
+import type { CustomerRecord } from "@/modules/customers/types";
 
 interface PaymentModalProps {
   total: number;
@@ -7,8 +10,8 @@ interface PaymentModalProps {
   change: number;
   payments: { method: string; value: number }[];
   paymentInputValue: number;
-  customer: { name: string; document: string };
-  setCustomer: (customer: { name: string; document: string }) => void;
+  customer: CustomerRecord | null;
+  setCustomer: (customer: CustomerRecord | null) => void;
   setPaymentInputValue: (val: number) => void;
   onClose: () => void;
   handleAddPayment: (method: string, amount: number) => void;
@@ -28,10 +31,54 @@ export const PaymentModal = ({
   customer,
   setCustomer,
 }: PaymentModalProps) => {
+  const [term, setTerm] = useState("");
+  const [results, setResults] = useState<CustomerRecord[]>([]);
+  const walletUsed = payments
+    .filter((payment) => payment.method === "CARTEIRA")
+    .reduce((sum, payment) => sum + payment.value, 0);
+  const availableNow =
+    customer?.availableCredit == null ? null : customer.availableCredit - walletUsed;
+
+  useEffect(() => {
+    if (term.trim().length < 2) {
+      setResults([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      const response = await fetch(`/api/customers?q=${encodeURIComponent(term)}`);
+      if (response.ok) setResults(await response.json());
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [term]);
+
+  function addWallet() {
+    if (!customer) {
+      toast.error("Selecione um cliente cadastrado");
+      return;
+    }
+    if (availableNow == null) {
+      toast.error("Cliente sem limite de crédito");
+      return;
+    }
+    const amount = Math.min(paymentInputValue, remaingBalance);
+    if (amount <= 0) return;
+    if (amount > availableNow) {
+      toast.error("Limite disponível insuficiente");
+      return;
+    }
+    if (paymentInputValue > remaingBalance) {
+      toast.info("Carteira não gera troco. Lancei só o saldo da venda.");
+    }
+    handleAddPayment("CARTEIRA", amount);
+  }
   
   // Atalhos de teclado
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "F6") {
+        e.preventDefault();
+        addWallet();
+      }
       if (e.key === "Enter" && remaingBalance <= 0) {
         e.preventDefault();
         onFinalize();
@@ -41,7 +88,7 @@ export const PaymentModal = ({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [remaingBalance, onFinalize, onClose]);
+  }, [remaingBalance, onFinalize, onClose, addWallet]);
 
   const formatCurrency = (value: number) =>
     (value / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -84,21 +131,51 @@ export const PaymentModal = ({
             </div>
 
             <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 space-y-3">
-              <p className="text-[10px] font-bold text-gray-400 uppercase">Identificação do Cliente</p>
-              <input
-                type="text"
-                placeholder="Nome do Cliente"
-                className="w-full p-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                value={customer.name}
-                onChange={(e) => setCustomer({ ...customer, name: e.target.value })}
-              />
-              <input
-                type="text"
-                placeholder="CPF/CNPJ"
-                className="w-full p-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                value={customer.document}
-                onChange={(e) => setCustomer({ ...customer, document: e.target.value })}
-              />
+              <p className="text-[10px] font-bold text-gray-400 uppercase">Cliente cadastrado</p>
+              {customer ? (
+                <div className="flex justify-between gap-2 items-start">
+                  <div>
+                    <p className="font-bold text-sm">{customer.name}</p>
+                    <p className="text-xs font-mono text-gray-500">{formatCpf(customer.document)}</p>
+                    <p className="text-xs text-blue-700 font-bold">
+                      Disponível: {availableNow == null ? "sem limite" : formatCurrency(availableNow)}
+                    </p>
+                  </div>
+                  <button type="button" onClick={() => setCustomer(null)} className="text-xs font-bold text-red-500">
+                    Trocar
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <input
+                    type="text"
+                    placeholder="Nome ou CPF"
+                    className="w-full p-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                    value={term}
+                    onChange={(event) => setTerm(event.target.value)}
+                  />
+                  {results.length > 0 && (
+                    <ul className="bg-white border rounded-lg max-h-32 overflow-y-auto">
+                      {results.map((item) => (
+                        <li key={item.id}>
+                          <button
+                            type="button"
+                            className="w-full text-left px-3 py-2 hover:bg-blue-50 text-sm"
+                            onClick={() => {
+                              setCustomer(item);
+                              setTerm("");
+                              setResults([]);
+                            }}
+                          >
+                            <span className="font-bold">{item.name}</span>
+                            <span className="block text-xs text-gray-400">{formatCpf(item.document)}</span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </>
+              )}
             </div>
           </div>
 
@@ -130,6 +207,14 @@ export const PaymentModal = ({
             </div>
 
             <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={addWallet}
+                className="col-span-2 bg-indigo-600 text-white py-2.5 px-3 rounded-lg font-bold text-xs flex justify-between items-center"
+              >
+                <span>CARTEIRA</span>
+                <span className="bg-indigo-500 text-white px-1.5 py-0.5 rounded text-[9px]">F6</span>
+              </button>
               {["DINHEIRO", "DÉBITO", "CRÉDITO", "PIX"].map((method, i) => (
                 <button
                   key={method}

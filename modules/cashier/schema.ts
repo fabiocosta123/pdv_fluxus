@@ -18,4 +18,5 @@ export const closeCashierSchema = z.object({
   countedDebit: z.number().int().nonnegative().optional(),
   countedCredit: z.number().int().nonnegative().optional(),
   countedPix: z.number().int().nonnegative().optional(),
+  countedWallet: z.number().int().nonnegative().optional(),
 });
