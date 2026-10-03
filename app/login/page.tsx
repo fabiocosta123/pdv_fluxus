@@ -71,8 +71,8 @@ export default function LoginPage() {
         {setup && (
           <input required placeholder="Nome" value={name} onChange={(event) => setName(event.target.value)} className="w-full border rounded-lg p-3" />
         )}
-        <input required placeholder="Usuário" value={username} onChange={(event) => setUsername(event.target.value)} className="w-full border rounded-lg p-3" autoCapitalize="none" />
-        <input required type="password" placeholder="Senha" value={password} onChange={(event) => setPassword(event.target.value)} className="w-full border rounded-lg p-3" />
+        <input required placeholder={setup ? "Usuário" : "admin"} value={username} onChange={(event) => setUsername(event.target.value)} className="w-full border rounded-lg p-3" autoCapitalize="none" />
+        <input required type="password" placeholder={setup ? "Senha" : "admin123"} value={password} onChange={(event) => setPassword(event.target.value)} className="w-full border rounded-lg p-3" />
         <button disabled={saving} className="w-full py-3 rounded-xl bg-blue-600 text-white font-bold">
           {saving ? "Aguarde..." : setup ? "Criar proprietário" : "Entrar"}
         </button>

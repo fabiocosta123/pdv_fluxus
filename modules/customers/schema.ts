@@ -1,12 +1,12 @@
 import { z } from "zod";
-import { isValidCpf, onlyDigits } from "./document";
+import { isValidDocument, onlyDigits } from "./document";
 
-const cpf = z
+const document = z
   .string()
   .trim()
-  .min(1, "CPF é obrigatório")
+  .min(1, "Informe o CPF ou CNPJ")
   .transform(onlyDigits)
-  .refine(isValidCpf, "CPF inválido");
+  .refine(isValidDocument, "CPF ou CNPJ inválido");
 
 const birthDate = z
   .string()
@@ -28,7 +28,7 @@ const creditLimit = z.number().int().nonnegative("Limite não pode ser negativo"
 
 export const createCustomerSchema = z.object({
   name: z.string().trim().min(2, "Informe o nome"),
-  document: cpf,
+  document,
   birthDate,
   phone,
   creditLimit,
@@ -42,8 +42,15 @@ export const updateCustomerSchema = z.object({
   status: z.enum(["ACTIVE", "BLOCKED"]),
 });
 
-export const receivePaymentSchema = z.object({
-  amount: z.number().int().positive("Informe o valor recebido"),
-  method: z.enum(["DINHEIRO", "PIX", "DEBITO", "CREDITO"]),
-  note: z.string().trim().max(200).optional(),
-});
+const calendarDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida");
+
+export const receivePaymentSchema = z
+  .object({
+    amount: z.number().int().positive("Informe o valor da conta"),
+    method: z.enum(["DINHEIRO", "PIX", "DEBITO", "CREDITO"]),
+    note: z.string().trim().max(200).optional(),
+    paidOn: calendarDate.optional(),
+    interest: z.number().int().nonnegative("Juros inválido").optional(),
+    discount: z.number().int().nonnegative("Desconto inválido").optional(),
+  })
+  .refine((data) => (data.discount ?? 0) <= data.amount, "Desconto maior que o valor da conta");

@@ -53,7 +53,8 @@ function summarize(session: SessionWithRelations) {
   for (const entry of session.ledgerEntries) {
     if (!entry.method || entry.method === "WALLET") continue;
     const label = paymentMethodLabel(entry.method);
-    salesByMethod[label] = (salesByMethod[label] ?? 0) + entry.amount;
+    const received = entry.amount + entry.interest - entry.discount;
+    salesByMethod[label] = (salesByMethod[label] ?? 0) + received;
   }
 
   const totalAporte = session.movements

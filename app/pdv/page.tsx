@@ -380,7 +380,6 @@ export default function PDVPage() {
             handleAddPayment("CRÉDITO", paymentInputValue);
             break;
           case "F4":
-            handleAddPayment("PIX", paymentInputValue);
             break;
           case "Escape":
             setIsPaymentModalOpen(false);

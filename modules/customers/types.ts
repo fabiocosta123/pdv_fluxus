@@ -21,6 +21,11 @@ export type CustomerLedgerEntry = {
   note: string | null;
   saleId: string | null;
   createdAt: string;
+  dueDate: string | null;
+  paidOn: string | null;
+  interest: number;
+  discount: number;
+  settledBy: string | null;
 };
 
 export type CustomerPurchase = {

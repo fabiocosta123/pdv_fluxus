@@ -17,6 +17,24 @@ export type FinanceReceivable = {
   document: string;
   amount: number;
   since: string | null;
+  dueDate: string | null;
+  creditLimit: number | null;
+  availableCredit: number | null;
+};
+
+export type FinanceReceipt = {
+  id: string;
+  customerId: string;
+  name: string;
+  document: string;
+  amount: number;
+  interest: number;
+  discount: number;
+  received: number;
+  dueDate: string | null;
+  paidOn: string | null;
+  method: string | null;
+  settledBy: string | null;
 };
 
 export type FinanceDueDay = {

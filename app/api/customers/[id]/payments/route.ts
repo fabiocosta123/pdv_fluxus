@@ -8,10 +8,10 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    await allow(request, "customers");
+    const user = await allow(request, "customers");
     const { id } = await params;
     const body = await readJson(request);
-    const payment = await receiveCustomerPayment(id, body);
+    const payment = await receiveCustomerPayment(id, body, { userId: user.id, requireCashier: true });
     return NextResponse.json(payment, { status: 201 });
   } catch (error) {
     return fail(error);

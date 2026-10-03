@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { MoneyInput } from "../../components/MoneyInput";
-import { formatCpf } from "@/modules/customers/document";
+import { formatDocument } from "@/modules/customers/document";
 import type { CustomerRecord } from "@/modules/customers/types";
 
 interface PaymentModalProps {
@@ -33,6 +33,16 @@ export const PaymentModal = ({
 }: PaymentModalProps) => {
   const [term, setTerm] = useState("");
   const [results, setResults] = useState<CustomerRecord[]>([]);
+  const [pix, setPix] = useState<{
+    id: string;
+    payload: string;
+    qrCode: string;
+    expiresAt: string | null;
+    amount: number;
+    sandbox: boolean;
+  } | null>(null);
+  const [creatingPix, setCreatingPix] = useState(false);
+  const settledPix = useRef<string | null>(null);
   const walletUsed = payments
     .filter((payment) => payment.method === "CARTEIRA")
     .reduce((sum, payment) => sum + payment.value, 0);
@@ -71,10 +81,95 @@ export const PaymentModal = ({
     }
     handleAddPayment("CARTEIRA", amount);
   }
+
+  function settlePix(chargeId: string, amount: number) {
+    if (settledPix.current === chargeId) return;
+    settledPix.current = chargeId;
+    handleAddPayment("PIX", amount);
+    setPix(null);
+    toast.success("PIX recebido");
+  }
+
+  async function startPix() {
+    if (creatingPix || pix) return;
+    const requested = paymentInputValue > 0 ? paymentInputValue : remaingBalance;
+    const amount = Math.min(requested, remaingBalance);
+    if (amount <= 0) {
+      toast.error("Informe o valor do PIX");
+      return;
+    }
+    if (requested > remaingBalance) {
+      toast.info("PIX não gera troco. O QR Code sai no saldo da venda.");
+    }
+
+    setCreatingPix(true);
+    const response = await fetch("/api/pix", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        amount,
+        customerName: customer?.name,
+        document: customer?.document,
+      }),
+    });
+    const data = await response.json().catch(() => ({}));
+    setCreatingPix(false);
+    if (!response.ok) {
+      toast.error(data.error || "Não foi possível gerar o PIX");
+      return;
+    }
+    settledPix.current = null;
+    setPix(data);
+  }
+
+  async function simulatePix() {
+    if (!pix) return;
+    const response = await fetch(`/api/pix/${pix.id}/simulate`, { method: "POST" });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      toast.error(data.error || "Não foi possível simular o pagamento");
+      return;
+    }
+    settlePix(pix.id, pix.amount);
+  }
+
+  useEffect(() => {
+    if (!pix) return;
+    let active = true;
+    const tick = async () => {
+      const response = await fetch(`/api/pix/${pix.id}`);
+      const data = await response.json().catch(() => ({}));
+      if (!active || !response.ok || !data.paid) return;
+      settlePix(pix.id, pix.amount);
+    };
+    const timer = setInterval(() => {
+      void tick();
+    }, 3000);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [pix]);
+
+  useEffect(() => {
+    if (!pix) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (!["Escape", "F1", "F2", "F3", "F4"].includes(event.key)) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      if (event.key === "Escape") setPix(null);
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [pix]);
   
   // Atalhos de teclado
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "F4") {
+        e.preventDefault();
+        void startPix();
+      }
       if (e.key === "F6") {
         e.preventDefault();
         addWallet();
@@ -88,7 +183,7 @@ export const PaymentModal = ({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [remaingBalance, onFinalize, onClose, addWallet]);
+  }, [remaingBalance, onFinalize, onClose, addWallet, startPix]);
 
   const formatCurrency = (value: number) =>
     (value / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -136,7 +231,7 @@ export const PaymentModal = ({
                 <div className="flex justify-between gap-2 items-start">
                   <div>
                     <p className="font-bold text-sm">{customer.name}</p>
-                    <p className="text-xs font-mono text-gray-500">{formatCpf(customer.document)}</p>
+                    <p className="text-xs font-mono text-gray-500">{formatDocument(customer.document)}</p>
                     <p className="text-xs text-blue-700 font-bold">
                       Disponível: {availableNow == null ? "sem limite" : formatCurrency(availableNow)}
                     </p>
@@ -149,7 +244,7 @@ export const PaymentModal = ({
                 <>
                   <input
                     type="text"
-                    placeholder="Nome ou CPF"
+                    placeholder="Nome, CPF ou CNPJ"
                     className="w-full p-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
                     value={term}
                     onChange={(event) => setTerm(event.target.value)}
@@ -168,7 +263,7 @@ export const PaymentModal = ({
                             }}
                           >
                             <span className="font-bold">{item.name}</span>
-                            <span className="block text-xs text-gray-400">{formatCpf(item.document)}</span>
+                            <span className="block text-xs text-gray-400">{formatDocument(item.document)}</span>
                           </button>
                         </li>
                       ))}
@@ -218,7 +313,11 @@ export const PaymentModal = ({
               {["DINHEIRO", "DÉBITO", "CRÉDITO", "PIX"].map((method, i) => (
                 <button
                   key={method}
-                  onClick={() => handleAddPayment(method, paymentInputValue)}
+                  onClick={() => {
+                    if (method === "PIX") void startPix();
+                    else handleAddPayment(method, paymentInputValue);
+                  }}
+                  disabled={method === "PIX" && creatingPix}
                   className="bg-white py-2.5 px-3 rounded-lg font-bold text-xs border-2 border-gray-100 hover:border-blue-400 hover:bg-blue-50 transition-all flex justify-between items-center group"
                 >
                   <span className="group-hover:text-blue-700">{method}</span>
@@ -228,6 +327,42 @@ export const PaymentModal = ({
             </div>
           </div>
         </div>
+
+        {pix && (
+          <div className="mx-5 mb-4 p-4 border-2 border-blue-200 rounded-2xl bg-blue-50 text-center space-y-3">
+            <div>
+              <p className="text-[10px] font-black uppercase text-blue-600">Aguardando PIX</p>
+              <p className="text-2xl font-black text-blue-900">{formatCurrency(pix.amount)}</p>
+              {pix.expiresAt && (
+                <p className="text-xs text-gray-500">
+                  Válido até {new Date(pix.expiresAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                </p>
+              )}
+            </div>
+            <img src={pix.qrCode} alt="QR Code PIX" className="mx-auto w-56 h-56 bg-white p-2 rounded-xl" />
+            <p className="text-[10px] text-gray-500 break-all">{pix.payload}</p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  void navigator.clipboard.writeText(pix.payload);
+                  toast.success("Código PIX copiado");
+                }}
+                className="flex-1 py-2 rounded-xl bg-white border font-bold text-sm"
+              >
+                Copiar código
+              </button>
+              {pix.sandbox && (
+                <button type="button" onClick={() => void simulatePix()} className="flex-1 py-2 rounded-xl bg-blue-600 text-white font-bold text-sm">
+                  Simular pagamento
+                </button>
+              )}
+              <button type="button" onClick={() => setPix(null)} className="flex-1 py-2 rounded-xl bg-gray-100 font-bold text-sm">
+                Cancelar
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Bloco de Troco Dinâmico */}
         {change > 0 && (

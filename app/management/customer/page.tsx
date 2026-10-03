@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ArrowLeft } from "lucide-react";
 import { MoneyInput } from "@/app/components/MoneyInput";
-import { formatCpf, formatPhone } from "@/modules/customers/document";
+import { formatDocument, formatPhone, maskDocument } from "@/modules/customers/document";
 import type { CustomerDetail, CustomerRecord } from "@/modules/customers/types";
 
 const emptyForm = {
@@ -67,7 +67,7 @@ export default function CustomerManagementPage() {
     setEditingId(customer.id);
     setForm({
       name: customer.name,
-      document: formatCpf(customer.document),
+      document: formatDocument(customer.document),
       birthDate: customer.birthDate ?? "",
       phone: customer.phone ?? "",
       creditLimit: customer.creditLimit,
@@ -137,7 +137,7 @@ export default function CustomerManagementPage() {
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Buscar por nome ou CPF"
+            placeholder="Buscar por nome, CPF ou CNPJ"
             className="flex-1 bg-white border rounded-xl px-4 py-3 outline-none focus:border-blue-500"
           />
           <button onClick={openCreate} className="bg-blue-600 text-white px-5 py-3 rounded-xl font-bold">
@@ -150,7 +150,7 @@ export default function CustomerManagementPage() {
             <thead className="text-[10px] uppercase text-gray-400">
               <tr>
                 <th className="p-4">Cliente</th>
-                <th>CPF</th>
+                <th>CPF/CNPJ</th>
                 <th>Nascimento</th>
                 <th className="text-right">Limite</th>
                 <th className="text-right">Dívida</th>
@@ -167,7 +167,7 @@ export default function CustomerManagementPage() {
                       {formatPhone(customer.phone) || "Sem telefone"} · {customer.status === "ACTIVE" ? "Ativo" : "Bloqueado"}
                     </p>
                   </td>
-                  <td className="font-mono text-sm">{formatCpf(customer.document)}</td>
+                  <td className="font-mono text-sm">{formatDocument(customer.document)}</td>
                   <td className="text-sm">{customer.birthDate ? customer.birthDate.split("-").reverse().join("/") : "—"}</td>
                   <td className="text-right">{money(customer.creditLimit)}</td>
                   <td className="text-right font-bold">{money(customer.currentDebt)}</td>
@@ -228,7 +228,14 @@ export default function CustomerManagementPage() {
                   <div key={entry.id} className="flex justify-between border-b py-2 text-sm">
                     <span>
                       {entry.type === "CHARGE" ? "Venda em carteira" : `Recebimento ${entry.method ?? ""}`}
-                      <span className="block text-[10px] text-gray-400">Saldo {money(entry.balanceAfter)}</span>
+                      <span className="block text-[10px] text-gray-400">
+                        {entry.type === "PAYMENT" && entry.paidOn
+                          ? `Pago em ${entry.paidOn.split("-").reverse().join("/")}`
+                          : "Saldo"}
+                        {entry.settledBy ? ` · ${entry.settledBy}` : ""} · saldo {money(entry.balanceAfter)}
+                        {entry.interest > 0 ? ` · juros ${money(entry.interest)}` : ""}
+                        {entry.discount > 0 ? ` · desconto ${money(entry.discount)}` : ""}
+                      </span>
                     </span>
                     <span className={entry.type === "CHARGE" ? "text-red-600 font-bold" : "text-emerald-700 font-bold"}>
                       {entry.type === "CHARGE" ? "+" : "-"}
@@ -247,7 +254,7 @@ export default function CustomerManagementPage() {
           <form onSubmit={saveCustomer} className="bg-white rounded-2xl p-6 w-full max-w-md space-y-3">
             <h2 className="text-lg font-black">{editingId ? "Editar cliente" : "Novo cliente"}</h2>
             <input required placeholder="Nome" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full border rounded-lg p-3" />
-            <input required={!editingId} disabled={Boolean(editingId)} placeholder="CPF" value={form.document} onChange={(e) => setForm({ ...form, document: e.target.value })} className="w-full border rounded-lg p-3 disabled:bg-gray-100" />
+            <input required={!editingId} disabled={Boolean(editingId)} inputMode="numeric" placeholder="CPF ou CNPJ" value={form.document} onChange={(e) => setForm({ ...form, document: maskDocument(e.target.value) })} className="w-full border rounded-lg p-3 disabled:bg-gray-100" />
             <input type="date" value={form.birthDate} onChange={(e) => setForm({ ...form, birthDate: e.target.value })} className="w-full border rounded-lg p-3" />
             <input placeholder="Telefone" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="w-full border rounded-lg p-3" />
             <label className="block text-xs font-bold text-gray-400 uppercase">Limite de crédito (opcional)</label>

@@ -26,12 +26,47 @@ type CustomerRow = {
   status: "ACTIVE" | "BLOCKED";
 };
 
+const STORE_TIMEZONE = "America/Sao_Paulo";
+
 function dateOnly(value: Date | null) {
   if (!value) return null;
   const year = value.getUTCFullYear();
   const month = String(value.getUTCMonth() + 1).padStart(2, "0");
   const day = String(value.getUTCDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function storeToday() {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: STORE_TIMEZONE }).format(new Date());
+}
+
+function utcDate(day: string) {
+  return new Date(`${day}T00:00:00.000Z`);
+}
+
+function storeDay(value: Date) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: STORE_TIMEZONE }).format(value);
+}
+
+type AccountEntry = {
+  createdAt: Date;
+  balanceAfter: number;
+  type: "CHARGE" | "PAYMENT";
+  dueDate: Date | null;
+};
+
+export function openAccountDates(entries: AccountEntry[]) {
+  let clearedAt: Date | null = null;
+  for (const entry of entries) {
+    if (entry.balanceAfter === 0) clearedAt = entry.createdAt;
+  }
+  const open = entries.filter((entry) => !clearedAt || entry.createdAt > clearedAt);
+  const first = open[0] ?? entries.at(-1);
+  const charge = open.find((entry) => entry.type === "CHARGE") ?? first;
+  return {
+    since: first ? storeDay(first.createdAt) : null,
+    dueDate: charge?.dueDate ? dateOnly(charge.dueDate) : charge ? storeDay(charge.createdAt) : null,
+  };
 }
 
 function toRecord(customer: CustomerRow): CustomerRecord {
@@ -77,7 +112,11 @@ export async function getCustomer(id: string): Promise<CustomerDetail> {
   const customer = await prisma.customer.findUnique({
     where: { id },
     include: {
-      ledger: { orderBy: { createdAt: "desc" }, take: 50 },
+      ledger: {
+        orderBy: { createdAt: "desc" },
+        take: 50,
+        include: { settledBy: { select: { name: true } } },
+      },
       sales: {
         orderBy: { createdAt: "desc" },
         take: 50,
@@ -96,6 +135,11 @@ export async function getCustomer(id: string): Promise<CustomerDetail> {
     note: entry.note,
     saleId: entry.saleId,
     createdAt: entry.createdAt.toISOString(),
+    dueDate: dateOnly(entry.dueDate),
+    paidOn: dateOnly(entry.paidOn),
+    interest: entry.interest,
+    discount: entry.discount,
+    settledBy: entry.settledBy?.name ?? null,
   }));
 
   const purchases: CustomerPurchase[] = customer.sales.map((sale) => ({
@@ -127,7 +171,7 @@ export async function createCustomer(input: unknown) {
     return toRecord(customer);
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-      throw new AppError("CPF já cadastrado", 409);
+      throw new AppError("CPF ou CNPJ já cadastrado", 409);
     }
     throw error;
   }
@@ -151,16 +195,23 @@ export async function updateCustomer(id: string, input: unknown) {
   return toRecord(customer);
 }
 
-export async function receiveCustomerPayment(customerId: string, input: unknown) {
+export async function receiveCustomerPayment(
+  customerId: string,
+  input: unknown,
+  context: { userId: string; requireCashier?: boolean } = { userId: "", requireCashier: true },
+) {
   const data = parse(receivePaymentSchema, input);
   const method = mapPaymentMethod(data.method);
+  const interest = data.interest ?? 0;
+  const discount = data.discount ?? 0;
+  const paidOn = data.paidOn || storeToday();
 
   return prisma.$transaction(async (tx) => {
     const session = await tx.cashierSession.findFirst({
       where: { status: "OPEN" },
       select: { id: true },
     });
-    if (!session) {
+    if (context.requireCashier !== false && !session) {
       throw new AppError("Abra o caixa para receber o débito", 409);
     }
 
@@ -169,6 +220,13 @@ export async function receiveCustomerPayment(customerId: string, input: unknown)
     if (data.amount > customer.currentDebt) {
       throw new AppError("Valor maior que a dívida atual", 400);
     }
+
+    const history = await tx.customerLedgerEntry.findMany({
+      where: { customerId },
+      orderBy: { createdAt: "asc" },
+      select: { createdAt: true, balanceAfter: true, type: true, dueDate: true },
+    });
+    const account = openAccountDates(history);
 
     const updated = await tx.customer.updateMany({
       where: { id: customerId, currentDebt: { gte: data.amount } },
@@ -187,13 +245,26 @@ export async function receiveCustomerPayment(customerId: string, input: unknown)
         balanceAfter,
         method,
         note: data.note || null,
-        cashierSessionId: session.id,
+        cashierSessionId: session?.id ?? null,
+        dueDate: account.dueDate ? utcDate(account.dueDate) : null,
+        paidOn: utcDate(paidOn),
+        interest,
+        discount,
+        settledById: context.userId || null,
       },
     });
+
+    const availableCredit =
+      customer.creditLimit == null ? null : customer.creditLimit - balanceAfter;
 
     return {
       id: entry.id,
       balanceAfter,
+      availableCredit,
+      amount: data.amount,
+      interest,
+      discount,
+      received: data.amount + interest - discount,
       method: paymentMethodLabel(method),
     };
   });
@@ -245,6 +316,7 @@ export async function chargeCustomerWallet(
       method: PaymentMethod.WALLET,
       saleId: input.saleId,
       cashierSessionId: input.cashierSessionId,
+      dueDate: utcDate(storeToday()),
     },
   });
 }

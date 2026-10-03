@@ -3,9 +3,23 @@ import { prisma } from "@/lib/prisma";
 import { mapPaymentMethod, paymentMethodLabel } from "@/modules/sales/payment-method";
 import { AppError } from "@/modules/shared/errors";
 import { parse } from "@/modules/shared/validation";
+import { openAccountDates, receiveCustomerPayment } from "@/modules/customers/service";
 import { expenseCategoryLabel } from "./labels";
-import { createExpenseSchema, financePeriodSchema, payExpenseSchema, payableListSchema } from "./schema";
-import type { FinanceDueDay, FinanceExpense, FinanceReceivable, FinanceSummary } from "./types";
+import {
+  createExpenseSchema,
+  financePeriodSchema,
+  payExpenseSchema,
+  payableListSchema,
+  receivableListSchema,
+  settleReceivableSchema,
+} from "./schema";
+import type {
+  FinanceDueDay,
+  FinanceExpense,
+  FinanceReceipt,
+  FinanceReceivable,
+  FinanceSummary,
+} from "./types";
 
 const STORE_TIMEZONE = "America/Sao_Paulo";
 
@@ -60,16 +74,6 @@ function toExpense(expense: ExpenseRow): FinanceExpense {
   };
 }
 
-function openSince(entries: { createdAt: Date; balanceAfter: number }[]) {
-  let clearedAt: Date | null = null;
-  for (const entry of entries) {
-    if (entry.balanceAfter === 0) clearedAt = entry.createdAt;
-  }
-  const open = entries.find((entry) => !clearedAt || entry.createdAt > clearedAt);
-  const since = open ?? entries.at(-1);
-  if (!since) return null;
-  return new Intl.DateTimeFormat("en-CA", { timeZone: STORE_TIMEZONE }).format(since.createdAt);
-}
 
 function dueDays(expenses: { dueDate: Date; amount: number }[]): FinanceDueDay[] {
   const grouped = new Map<string, { amount: number; count: number }>();
@@ -140,8 +144,19 @@ export async function getFinanceSummary(fromInput?: string | null, toInput?: str
       select: { method: true, value: true },
     }),
     prisma.customerLedgerEntry.findMany({
-      where: { type: "PAYMENT", createdAt: { gte: start, lte: end } },
-      select: { method: true, amount: true },
+      where: {
+        type: "PAYMENT",
+        OR: [
+          {
+            paidOn: {
+              gte: new Date(`${data.from}T00:00:00.000Z`),
+              lte: new Date(`${data.to}T00:00:00.000Z`),
+            },
+          },
+          { paidOn: null, createdAt: { gte: start, lte: end } },
+        ],
+      },
+      select: { method: true, amount: true, interest: true, discount: true },
     }),
     prisma.payment.findMany({
       where: {
@@ -167,7 +182,9 @@ export async function getFinanceSummary(fromInput?: string | null, toInput?: str
 
   const inflowByMethod: Record<string, number> = {};
   for (const payment of payments) addAmount(inflowByMethod, payment.method, payment.value);
-  for (const receipt of receipts) addAmount(inflowByMethod, receipt.method, receipt.amount);
+  for (const receipt of receipts) {
+    addAmount(inflowByMethod, receipt.method, receipt.amount + receipt.interest - receipt.discount);
+  }
 
   const days = dueDays(pendingExpenses);
   const overdue = days.filter((day) => day.date < today);
@@ -207,18 +224,63 @@ export async function listReceivables(): Promise<FinanceReceivable[]> {
     include: {
       ledger: {
         orderBy: { createdAt: "asc" },
-        select: { createdAt: true, balanceAfter: true },
+        select: { createdAt: true, balanceAfter: true, type: true, dueDate: true },
       },
     },
   });
 
-  return debtors.map((customer) => ({
-    customerId: customer.id,
-    name: customer.name,
-    document: customer.document ?? "",
-    amount: customer.currentDebt,
-    since: openSince(customer.ledger),
+  return debtors.map((customer) => {
+    const account = openAccountDates(customer.ledger);
+    return {
+      customerId: customer.id,
+      name: customer.name,
+      document: customer.document ?? "",
+      amount: customer.currentDebt,
+      since: account.since,
+      dueDate: account.dueDate,
+      creditLimit: customer.creditLimit,
+      availableCredit:
+        customer.creditLimit == null ? null : customer.creditLimit - customer.currentDebt,
+    };
+  });
+}
+
+export async function listReceipts(): Promise<FinanceReceipt[]> {
+  const entries = await prisma.customerLedgerEntry.findMany({
+    where: { type: "PAYMENT" },
+    orderBy: [{ paidOn: "desc" }, { createdAt: "desc" }],
+    include: {
+      customer: { select: { id: true, name: true, document: true } },
+      settledBy: { select: { name: true } },
+    },
+    take: 200,
+  });
+
+  return entries.map((entry) => ({
+    id: entry.id,
+    customerId: entry.customer.id,
+    name: entry.customer.name,
+    document: entry.customer.document ?? "",
+    amount: entry.amount,
+    interest: entry.interest,
+    discount: entry.discount,
+    received: entry.amount + entry.interest - entry.discount,
+    dueDate: entry.dueDate ? dateOnly(entry.dueDate) : null,
+    paidOn: entry.paidOn ? dateOnly(entry.paidOn) : null,
+    method: entry.method ? paymentMethodLabel(entry.method) : null,
+    settledBy: entry.settledBy?.name ?? null,
   }));
+}
+
+export async function listReceivableView(statusInput?: string | null) {
+  const { status } = parse(receivableListSchema, { status: statusInput || "OPEN" });
+  if (status === "PAID") return listReceipts();
+  return listReceivables();
+}
+
+export async function settleReceivable(customerId: string, input: unknown, userId: string) {
+  const data = parse(settleReceivableSchema, input);
+  return receiveCustomerPayment(customerId, data, { userId, requireCashier: false });
 }
 
 export async function createExpense(input: unknown) {

@@ -33,3 +33,17 @@ export const financePeriodSchema = z.object({
 export const payableListSchema = z.object({
   status: z.enum(["PENDING", "PAID", "ALL"]).default("PENDING"),
 });
+
+export const receivableListSchema = z.object({
+  status: z.enum(["OPEN", "PAID"]).default("OPEN"),
+});
+
+export const settleReceivableSchema = z
+  .object({
+    amount: z.number().int().positive("Informe o valor da conta"),
+    method: z.enum(["DINHEIRO", "PIX", "DEBITO", "CREDITO"]),
+    paidOn: dueDate,
+    interest: z.number().int().nonnegative("Juros inválido").optional(),
+    discount: z.number().int().nonnegative("Desconto inválido").optional(),
+  })
+  .refine((data) => (data.discount ?? 0) <= data.amount, "Desconto maior que o valor da conta");

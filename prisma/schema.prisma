@@ -145,10 +145,18 @@ model CustomerLedgerEntry {
   sale             Sale?            @relation(fields: [saleId], references: [id], onDelete: SetNull)
   cashierSessionId String?
   cashierSession   CashierSession?  @relation(fields: [cashierSessionId], references: [id], onDelete: SetNull)
+  dueDate          DateTime?        @db.Date
+  paidOn           DateTime?        @db.Date
+  interest         Int              @default(0)
+  discount         Int              @default(0)
+  settledById      String?
+  settledBy        User?            @relation(fields: [settledById], references: [id], onDelete: SetNull)
   createdAt        DateTime         @default(now())
 
   @@index([customerId, createdAt])
   @@index([cashierSessionId])
+  @@index([paidOn])
+  @@index([settledById])
 }
 
 model CashierSession {
@@ -227,9 +235,10 @@ model User {
   passwordHash String
   role         UserRole
   active       Boolean       @default(true)
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
   sessions     AuthSession[]
+  settlements  CustomerLedgerEntry[]
 }
 
 model AuthSession {

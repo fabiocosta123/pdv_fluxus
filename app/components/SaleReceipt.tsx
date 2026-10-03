@@ -1,3 +1,4 @@
+import { formatDocument } from "@/modules/customers/document";
 import { STORE_DEFAULTS } from "@/modules/settings/defaults";
 import type { PrintWidthId, StoreSettings } from "@/modules/settings/types";
 
@@ -45,7 +46,7 @@ export const SaleReceipt = ({ lastSale, store = STORE_DEFAULTS, printWidth = "80
             <p>NOME: {lastSale.customer.name.toUpperCase()}</p>
           )}
           {lastSale.customer.document && (
-            <p>CPF/CNPJ: {lastSale.customer.document}</p>
+            <p>CPF/CNPJ: {formatDocument(lastSale.customer.document)}</p>
           )}
         </div>
       ) : null}
