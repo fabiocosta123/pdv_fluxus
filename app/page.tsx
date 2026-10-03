@@ -42,11 +42,11 @@ export default function HomePage() {
     },
     {
       title: "Financeiro",
-      description: "Controle de fluxo e despesas",
+      description: "Painel, contas a pagar e a receber",
       icon: <DollarSign className="w-8 h-8" />,
       color: "bg-emerald-600",
-      path: "#",
-      status: "soon"
+      path: "/finance",
+      status: "active"
     },
     {
       title: "Clientes",

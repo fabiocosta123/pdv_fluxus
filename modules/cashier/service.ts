@@ -25,6 +25,9 @@ const sessionInclude = {
   ledgerEntries: {
     where: { type: "PAYMENT" as const },
   },
+  expenses: {
+    where: { status: "PAID" as const, method: "MONEY" as const },
+  },
 } satisfies Prisma.CashierSessionInclude;
 
 type SessionWithRelations = Prisma.CashierSessionGetPayload<{
@@ -62,18 +65,21 @@ function summarize(session: SessionWithRelations) {
     .reduce((sum, movement) => sum + movement.amount, 0);
 
   const totalSold = Object.values(salesByMethod).reduce((sum, value) => sum + value, 0);
+  const cashExpenses = session.expenses.reduce((sum, expense) => sum + expense.amount, 0);
 
   const moneyExpected =
     session.openingValue +
     (salesByMethod.DINHEIRO ?? 0) -
     changeTotal +
     totalAporte -
-    totalSangria;
+    totalSangria -
+    cashExpenses;
 
   return {
     openingValue: session.openingValue,
     totalAporte,
     totalSangria,
+    cashExpenses,
     salesByMethod,
     totalSold,
     moneyExpected,

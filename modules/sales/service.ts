@@ -43,7 +43,6 @@ export async function createSale(input: unknown) {
         where: {
           id: productId,
           isActive: true,
-          stock: { gte: quantity },
         },
         data: {
           stock: { decrement: quantity },
@@ -51,7 +50,7 @@ export async function createSale(input: unknown) {
       });
 
       if (updated.count !== 1) {
-        throw new AppError(`Estoque insuficiente para ${product.name}`, 409);
+        throw new AppError("Produto não encontrado ou inativo", 404);
       }
 
       lines.push({

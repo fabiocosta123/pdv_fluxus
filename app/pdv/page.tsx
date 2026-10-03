@@ -26,6 +26,7 @@ interface Product {
   price: number;
   barCode?: string;
   stock: number;
+  unit?: string;
   isActive: boolean;
 }
 
@@ -308,6 +309,61 @@ export default function PDVPage() {
     }
   }, [countedValues, router]);
 
+  const formatQty = (value: number) =>
+    value.toLocaleString("pt-BR", {
+      minimumFractionDigits: Number.isInteger(value) ? 0 : 3,
+    });
+
+  const adjustToStock = useCallback((id: string, stock: number) => {
+    setCart((prev) => {
+      if (stock <= 0) return prev.filter((item) => item.id !== id);
+      return prev.map((item) =>
+        item.id === id
+          ? { ...item, quantity: stock, subtotal: stock * item.price, stock }
+          : item,
+      );
+    });
+    toast.success(
+      stock > 0 ? `Quantidade ajustada para ${formatQty(stock)}` : "Item removido",
+      { id: `stock-${id}` },
+    );
+  }, []);
+
+  const warnOverStock = useCallback(
+    (item: { id: string; name: string; unit?: string }, stock: number) => {
+      const unit = item.unit || "UN";
+      const available = formatQty(stock);
+      toast.warning(item.name, {
+        id: `stock-${item.id}`,
+        description: `Estoque: ${available} ${unit}. Cancele o item ou ajuste a quantidade.`,
+        duration: 15000,
+        action: {
+          label: `Ajustar para ${available}`,
+          onClick: () => adjustToStock(item.id, stock),
+        },
+        cancel: {
+          label: "Cancelar item",
+          onClick: () => {
+            setCart((prev) => prev.filter((line) => line.id !== item.id));
+            toast.info("Item removido", { id: `stock-${item.id}` });
+          },
+        },
+      });
+    },
+    [adjustToStock],
+  );
+
+  const openPayment = useCallback(() => {
+    if (cart.length === 0) return;
+    for (const item of cart) {
+      const stock = Number(item.stock);
+      if (Number.isFinite(stock) && item.quantity > stock) {
+        warnOverStock(item, stock);
+      }
+    }
+    setIsPaymentModalOpen(true);
+  }, [cart, warnOverStock]);
+
   // atalhos teclado com travas de segurança
   const handleShortcuts = useCallback(
     (key: string) => {
@@ -397,7 +453,7 @@ export default function PDVPage() {
           }
           break;
         case "F10":
-          if (!isCartEmpty) setIsPaymentModalOpen(true);
+          openPayment();
           break;
         case "Delete":
           removeLastItem();
@@ -413,6 +469,7 @@ export default function PDVPage() {
       handleAddPayment,
       finalizarVenda,
       removeLastItem,
+      openPayment,
     ],
   );
 
@@ -502,22 +559,15 @@ export default function PDVPage() {
       toast.error("Este produto está inativo e não pode ser vendido!");
       return;
     }
+    const stock = Number(product.stock);
+    let overStock = false;
+    let addedQuantity = qty;
     setCart((prev) => {
       const existing = prev.find((item) => item.id === product.id);
       const newQuantity = existing ? existing.quantity + qty : qty;
+      addedQuantity = newQuantity;
+      overStock = Number.isFinite(stock) && newQuantity > stock;
 
-      // AVISO DE ESTOQUE (Apenas se a quantidade total no carrinho superar o estoque)
-      if (newQuantity > product.stock) {
-        toast.warning(`Estoque baixo: ${product.stock} un.`, {
-          id: `stock-${product.id}`,
-        });
-      }
-
-      toast.success(`${newQuantity}x ${product.name}`, {
-        id: `success-${product.id}`,
-      });
-
-      //ATUALIZAÇÃO DO ESTADO
       if (existing) {
         return prev.map((item) =>
           item.id === product.id
@@ -525,6 +575,7 @@ export default function PDVPage() {
               ...item,
               quantity: newQuantity,
               subtotal: newQuantity * item.price,
+              stock: Number.isFinite(stock) ? stock : item.stock,
             }
             : item,
         );
@@ -532,8 +583,21 @@ export default function PDVPage() {
 
       return [
         ...prev,
-        { ...product, quantity: qty, subtotal: qty * product.price },
+        {
+          ...product,
+          stock: Number.isFinite(stock) ? stock : product.stock,
+          quantity: qty,
+          subtotal: qty * product.price,
+        },
       ];
+    });
+
+    if (overStock) {
+      warnOverStock(product, stock);
+      return;
+    }
+    toast.success(`${formatQty(addedQuantity)}x ${product.name}`, {
+      id: `success-${product.id}`,
     });
   };
 
@@ -898,7 +962,7 @@ export default function PDVPage() {
             </div>
 
             <button
-              onClick={() => setIsPaymentModalOpen(true)}
+              onClick={openPayment}
               disabled={cart.length === 0}
               className={`w-full py-5 lg:py-6 rounded-xl text-lg lg:text-2xl font-black uppercase transition-all active:scale-95 flex flex-col items-center justify-center leading-tight ${cart.length === 0
                 ? "bg-blue-800 text-blue-400 cursor-not-allowed"
@@ -1172,8 +1236,8 @@ export default function PDVPage() {
                     setSearchTerm("");
                     setSearchResults([]);
                   }}
-                  disabled={p.stock <= 0 || !p.isActive}
-                  className={`mt-2 px-3 py-1 rounded text-xs font-bold ${p.stock > 0 && p.isActive
+                  disabled={!p.isActive}
+                  className={`mt-2 px-3 py-1 rounded text-xs font-bold ${p.isActive
                     ? "bg-green-600 text-white hover:bg-green-500"
                     : "bg-gray-300 text-gray-500 cursor-not-allowed"
                     }`}

@@ -20,6 +20,7 @@ export function cashDrawerLines(report: CashierReport) {
     cashSales +
     report.totalAporte -
     report.totalSangria -
+    report.cashExpenses -
     report.moneyExpected;
 
   return [
@@ -27,6 +28,7 @@ export function cashDrawerLines(report: CashierReport) {
     { label: "Entradas em dinheiro", value: cashSales },
     { label: "Aportes", value: report.totalAporte },
     { label: "Sangrias", value: -report.totalSangria },
+    { label: "Despesas em dinheiro", value: -report.cashExpenses },
     { label: "Troco devolvido", value: -change },
   ].filter((line) => line.label === "Abertura" || line.label === "Entradas em dinheiro" || line.value !== 0);
 }

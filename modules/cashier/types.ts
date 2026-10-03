@@ -11,6 +11,7 @@ export type CashierReport = {
   openingValue: number;
   totalAporte: number;
   totalSangria: number;
+  cashExpenses: number;
   salesByMethod: Record<string, number>;
   totalSold: number;
   moneyExpected: number;
