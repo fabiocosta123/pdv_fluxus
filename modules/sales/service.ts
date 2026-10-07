@@ -1,9 +1,9 @@
-import { SaleStatus } from "@prisma/client";
+import { LedgerEntryType, PaymentMethod, SaleStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { chargeCustomerWallet } from "@/modules/customers/service";
 import { AppError } from "@/modules/shared/errors";
 import { parse } from "@/modules/shared/validation";
-import { mapPaymentMethod } from "./payment-method";
+import { mapPaymentMethod, paymentMethodLabel } from "./payment-method";
 import { createSaleSchema } from "./schema";
 
 function lineSubtotal(priceCents: number, quantity: number) {
@@ -127,5 +127,109 @@ export async function createSale(input: unknown) {
     }
 
     return sale;
+  });
+}
+
+export async function listOpenSales() {
+  const session = await prisma.cashierSession.findFirst({
+    where: { status: "OPEN" },
+    select: { id: true },
+  });
+  if (!session) return [];
+
+  const sales = await prisma.sale.findMany({
+    where: { cashierSessionId: session.id, status: SaleStatus.COMPLETED },
+    orderBy: { createdAt: "desc" },
+    take: 30,
+    include: {
+      items: { select: { name: true, quantity: true, subtotal: true } },
+      payments: { select: { method: true, value: true } },
+      customer: { select: { name: true } },
+    },
+  });
+
+  return sales.map((sale) => ({
+    id: sale.id,
+    total: sale.total,
+    createdAt: sale.createdAt,
+    customerName: sale.customer?.name ?? null,
+    items: sale.items.map((item) => ({
+      name: item.name,
+      quantity: Number(item.quantity),
+      subtotal: item.subtotal,
+    })),
+    payments: sale.payments.map((payment) => ({
+      method: paymentMethodLabel(payment.method),
+      value: payment.value,
+    })),
+  }));
+}
+
+export async function cancelSale(id: string) {
+  return prisma.$transaction(async (tx) => {
+    const sale = await tx.sale.findUnique({
+      where: { id },
+      include: {
+        items: true,
+        payments: true,
+        cashierSession: { select: { id: true, status: true } },
+      },
+    });
+
+    if (!sale || sale.status !== SaleStatus.COMPLETED) {
+      throw new AppError("Venda não encontrada", 404);
+    }
+    const session = sale.cashierSession;
+    if (!session || session.status !== "OPEN") {
+      throw new AppError("Só é possível estornar venda do caixa aberto", 409);
+    }
+
+    const canceled = await tx.sale.updateMany({
+      where: { id: sale.id, status: SaleStatus.COMPLETED },
+      data: { status: SaleStatus.CANCELED },
+    });
+    if (canceled.count !== 1) {
+      throw new AppError("Essa venda já foi estornada", 409);
+    }
+
+    for (const item of sale.items) {
+      await tx.product.update({
+        where: { id: item.productId },
+        data: { stock: { increment: item.quantity } },
+      });
+    }
+
+    const walletTotal = sale.payments
+      .filter((payment) => payment.method === PaymentMethod.WALLET)
+      .reduce((sum, payment) => sum + payment.value, 0);
+
+    if (walletTotal > 0 && sale.customerId) {
+      const customer = await tx.customer.findUnique({ where: { id: sale.customerId } });
+      if (!customer || customer.currentDebt < walletTotal) {
+        throw new AppError("O fiado dessa venda já foi recebido", 409);
+      }
+
+      const updated = await tx.customer.updateMany({
+        where: { id: customer.id, currentDebt: { gte: walletTotal } },
+        data: { currentDebt: { decrement: walletTotal } },
+      });
+      if (updated.count !== 1) {
+        throw new AppError("Não foi possível estornar o fiado", 409);
+      }
+
+      await tx.customerLedgerEntry.create({
+        data: {
+          customerId: customer.id,
+          type: LedgerEntryType.PAYMENT,
+          amount: walletTotal,
+          balanceAfter: customer.currentDebt - walletTotal,
+          method: PaymentMethod.WALLET,
+          note: "Estorno da venda",
+          cashierSessionId: session.id,
+        },
+      });
+    }
+
+    return { id: sale.id, status: SaleStatus.CANCELED };
   });
 }
