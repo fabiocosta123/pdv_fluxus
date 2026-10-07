@@ -89,23 +89,32 @@ function parseBirthDate(value: string | null | undefined) {
   return new Date(`${value}T00:00:00.000Z`);
 }
 
+function fold(value: string) {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+}
+
 export async function listCustomers(query: string) {
   const term = query.trim();
-  const digits = term.replace(/\D/g, "");
-
   const customers = await prisma.customer.findMany({
-    where: term
-      ? {
-          OR: [
-            { name: { contains: term, mode: "insensitive" } },
-            ...(digits ? [{ document: { contains: digits } }] : []),
-          ],
-        }
-      : undefined,
     orderBy: { name: "asc" },
   });
+  if (!term) return customers.map(toRecord);
 
-  return customers.map(toRecord);
+  const folded = fold(term);
+  const digits = term.replace(/\D/g, "");
+
+  return customers
+    .filter((customer) => {
+      const name = fold(customer.name);
+      const document = (customer.document ?? "").replace(/\D/g, "");
+      return name.includes(folded) || (digits.length > 0 && document.includes(digits));
+    })
+    .sort(
+      (a, b) =>
+        Number(!fold(a.name).startsWith(folded)) - Number(!fold(b.name).startsWith(folded)) ||
+        a.name.localeCompare(b.name, "pt-BR"),
+    )
+    .map(toRecord);
 }
 
 export async function getCustomer(id: string): Promise<CustomerDetail> {

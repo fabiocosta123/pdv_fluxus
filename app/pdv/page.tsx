@@ -59,6 +59,18 @@ export default function PDVPage() {
     "SANGRIA" | "APORTE" | "FECHAMENTO"
   >("SANGRIA");
   const [isProductSearchOpen, setIsProductSearchOpen] = useState(false);
+  const [isRefundOpen, setIsRefundOpen] = useState(false);
+  const [refundSales, setRefundSales] = useState<
+    {
+      id: string;
+      total: number;
+      createdAt: string;
+      customerName: string | null;
+      items: { name: string; quantity: number; subtotal: number }[];
+      payments: { method: string; value: number }[];
+    }[]
+  >([]);
+  const [refundingId, setRefundingId] = useState<string | null>(null);
 
   const [store, setStore] = useState<StoreSettings>(STORE_DEFAULTS);
   const [printSize, setPrintSize] = useState<"58mm" | "80mm">(STORE_DEFAULTS.printWidth);
@@ -272,6 +284,33 @@ export default function PDVPage() {
       }, 300);
     }
   }, [cart, payments, total, totalPaid, change, remaingBalance, customer]);
+
+  const openRefunds = async () => {
+    const response = await fetch("/api/sales");
+    const data = await response.json().catch(() => null);
+    if (!response.ok) {
+      toast.error(data?.error || "Não foi possível listar as vendas");
+      return;
+    }
+    setRefundSales(Array.isArray(data) ? data : []);
+    setIsRefundOpen(true);
+  };
+
+  const confirmRefund = async (id: string) => {
+    setRefundingId(id);
+    try {
+      const response = await fetch(`/api/sales/${id}/cancel`, { method: "POST" });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        toast.error(data.error || "Não foi possível estornar a venda");
+        return;
+      }
+      setRefundSales((current) => current.filter((sale) => sale.id !== id));
+      toast.success("Venda estornada. O estoque voltou e o caixa deixou de contar essa venda.");
+    } finally {
+      setRefundingId(null);
+    }
+  };
 
   // remove ultimo item
   const removeLastItem = useCallback(() => {
@@ -1045,6 +1084,23 @@ export default function PDVPage() {
                 </kbd>
               </button>
             ))}
+            <button
+              type="button"
+              onClick={() => void openRefunds()}
+              disabled={cart.length > 0}
+              className={`p-3 rounded-lg border border-gray-200 flex items-center justify-between shadow-sm transition-all bg-amber-50 ${
+                cart.length > 0
+                  ? "opacity-30 cursor-not-allowed grayscale"
+                  : "hover:border-amber-500 active:scale-95"
+              }`}
+            >
+              <span className="text-[10px] font-bold uppercase text-gray-500">
+                Estornar venda
+              </span>
+              <kbd className="px-2 py-1 rounded text-xs font-black border-b-2 bg-white border-gray-300">
+                EST
+              </kbd>
+            </button>
           </div>
 
           {/* 3. BLOCO FINANCEIRO (TOTAL + BOTÃO) - Fica na parte de baixo */}
@@ -1357,6 +1413,61 @@ export default function PDVPage() {
           )}
         </div>
         {/* MODAL DE CONFERÊNCIA DE VALORES (FECHAMENTO) */}
+        {isRefundOpen && (
+          <div className="fixed inset-0 bg-black/70 flex items-start justify-center z-[240] p-4 pt-16">
+            <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden">
+              <div className="p-4 bg-amber-600 text-white flex justify-between items-center">
+                <div>
+                  <h2 className="text-lg font-black uppercase">Estornar venda</h2>
+                  <p className="text-[10px] uppercase">Somente vendas deste caixa aberto</p>
+                </div>
+                <button type="button" onClick={() => setIsRefundOpen(false)} className="text-2xl">
+                  ✕
+                </button>
+              </div>
+              <div className="max-h-[60vh] overflow-y-auto">
+                {refundSales.length === 0 && (
+                  <p className="p-6 text-center text-sm text-gray-400">
+                    Nenhuma venda concluída neste caixa.
+                  </p>
+                )}
+                {refundSales.map((sale) => (
+                  <div key={sale.id} className="p-4 border-b flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-black text-gray-800">
+                        {(sale.total / 100).toLocaleString("pt-BR", {
+                          style: "currency",
+                          currency: "BRL",
+                        })}
+                      </p>
+                      <p className="text-[10px] text-gray-400">
+                        {new Date(sale.createdAt).toLocaleTimeString("pt-BR", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                        {sale.customerName ? ` · ${sale.customerName}` : ""}
+                      </p>
+                      <p className="text-xs text-gray-600 mt-1">
+                        {sale.items.map((item) => item.name).join(", ")}
+                      </p>
+                      <p className="text-[10px] uppercase text-gray-400">
+                        {sale.payments.map((payment) => payment.method).join(" + ")}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={refundingId === sale.id}
+                      onClick={() => void confirmRefund(sale.id)}
+                      className="shrink-0 bg-amber-600 text-white text-[10px] font-black uppercase px-3 py-2 rounded-lg disabled:opacity-50"
+                    >
+                      {refundingId === sale.id ? "..." : "Estornar"}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
         {modalType === "FECHAMENTO" && isCashModalOpen && (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[250] p-4">
             <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden">

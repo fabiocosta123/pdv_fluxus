@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { MoneyInput } from "../../components/MoneyInput";
-import { formatDocument } from "@/modules/customers/document";
+import { formatDocument, onlyDigits } from "@/modules/customers/document";
 import type { CustomerRecord } from "@/modules/customers/types";
 
 interface PaymentModalProps {
@@ -33,6 +33,8 @@ export const PaymentModal = ({
 }: PaymentModalProps) => {
   const [term, setTerm] = useState("");
   const [results, setResults] = useState<CustomerRecord[]>([]);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const [lookupTerm, setLookupTerm] = useState("");
   const [pix, setPix] = useState<{
     id: string;
     payload: string;
@@ -50,16 +52,33 @@ export const PaymentModal = ({
     customer?.availableCredit == null ? null : customer.availableCredit - walletUsed;
 
   useEffect(() => {
-    if (term.trim().length < 2) {
+    const query = term.trim();
+    if (!query) {
       setResults([]);
+      setLookupTerm("");
       return;
     }
     const timer = setTimeout(async () => {
-      const response = await fetch(`/api/customers?q=${encodeURIComponent(term)}`);
-      if (response.ok) setResults(await response.json());
-    }, 250);
+      const response = await fetch(`/api/customers?q=${encodeURIComponent(query)}`);
+      if (!response.ok) return;
+      setResults(await response.json());
+      setLookupTerm(query);
+    }, 200);
     return () => clearTimeout(timer);
   }, [term]);
+
+  function customerLabel(item: CustomerRecord) {
+    const document = onlyDigits(item.document);
+    return document ? `${item.name} - ${document}` : item.name;
+  }
+
+  function chooseCustomer(item: CustomerRecord) {
+    setCustomer(item);
+    setTerm("");
+    setResults([]);
+    setLookupTerm("");
+    setHighlightedIndex(-1);
+  }
 
   function addWallet() {
     if (!customer) {
@@ -247,27 +266,53 @@ export const PaymentModal = ({
                     placeholder="Nome, CPF ou CNPJ"
                     className="w-full p-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
                     value={term}
-                    onChange={(event) => setTerm(event.target.value)}
+                    onChange={(event) => {
+                      setTerm(event.target.value);
+                      setHighlightedIndex(-1);
+                    }}
+                    onKeyDown={(event) => {
+                      if (results.length === 0) return;
+                      if (event.key === "ArrowDown") {
+                        event.preventDefault();
+                        setHighlightedIndex((current) => (current + 1) % results.length);
+                      } else if (event.key === "ArrowUp") {
+                        event.preventDefault();
+                        setHighlightedIndex((current) =>
+                          current <= 0 ? results.length - 1 : current - 1,
+                        );
+                      } else if (event.key === "Enter") {
+                        event.preventDefault();
+                        if (results.length === 1) chooseCustomer(results[0]);
+                        else if (highlightedIndex >= 0 && results[highlightedIndex]) {
+                          chooseCustomer(results[highlightedIndex]);
+                        } else {
+                          toast.error("Há mais de um cliente. Escolha pelo CPF ou CNPJ.");
+                        }
+                      }
+                    }}
                   />
                   {results.length > 0 && (
-                    <ul className="bg-white border rounded-lg max-h-32 overflow-y-auto">
-                      {results.map((item) => (
+                    <ul className="bg-white border rounded-lg max-h-48 overflow-y-auto">
+                      {results.map((item, index) => (
                         <li key={item.id}>
                           <button
                             type="button"
-                            className="w-full text-left px-3 py-2 hover:bg-blue-50 text-sm"
-                            onClick={() => {
-                              setCustomer(item);
-                              setTerm("");
-                              setResults([]);
+                            className={`w-full text-left px-3 py-2 text-sm font-bold ${
+                              index === highlightedIndex ? "bg-blue-50" : "hover:bg-blue-50"
+                            }`}
+                            onPointerDown={(event) => {
+                              event.preventDefault();
+                              chooseCustomer(item);
                             }}
                           >
-                            <span className="font-bold">{item.name}</span>
-                            <span className="block text-xs text-gray-400">{formatDocument(item.document)}</span>
+                            {customerLabel(item)}
                           </button>
                         </li>
                       ))}
                     </ul>
+                  )}
+                  {term.trim().length > 0 && lookupTerm === term.trim() && results.length === 0 && (
+                    <p className="text-xs text-gray-400">Nenhum cliente encontrado.</p>
                   )}
                 </>
               )}
