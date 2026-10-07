@@ -2,6 +2,8 @@
 import { useState, useEffect, use } from "react"; 
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Save, Loader2, Barcode } from "lucide-react";
+import { toast } from "sonner";
+import { normalizeUnit, PRODUCT_UNITS } from "@/modules/catalog/units";
 
 export default function EditProductPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
@@ -15,7 +17,8 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
     price: 0,
     costPrice: 0,
     stock: 0,
-    barCode: "", 
+    barCode: "",
+    unit: "un",
   });
 
   useEffect(() => {
@@ -25,12 +28,17 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
         if (!response.ok) throw new Error("Produto não encontrado");
         
         const data = await response.json();
+        const toNumber = (value: unknown) => {
+          const parsed = Number(value);
+          return Number.isFinite(parsed) ? parsed : 0;
+        };
         setFormData({
           name: data.name || "",
-          price: (data.price || 0) / 100,
-          costPrice: (data.costPrice || 0) / 100,
-          stock: data.stock || 0,
+          price: toNumber(data.price) / 100,
+          costPrice: toNumber(data.costPrice) / 100,
+          stock: toNumber(data.stock),
           barCode: data.barCode || "",
+          unit: normalizeUnit(data.unit),
         });
       } catch (error) {
         console.error("Erro ao carregar:", error);
@@ -50,18 +58,25 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ...formData,
-          price: Math.round(formData.price * 100),
-          costPrice: Math.round(formData.costPrice * 100),
+          name: formData.name,
+          barCode: formData.barCode,
+          price: Math.round(Number(formData.price) * 100),
+          costPrice: Math.round(Number(formData.costPrice) * 100),
+          stock: Number(formData.stock),
+          unit: formData.unit,
         }),
       });
 
-      if (response.ok) {
-        router.push("/inventory");
-        router.refresh();
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.error || "Erro ao salvar produto");
       }
+
+      toast.success("Produto atualizado");
+      router.push("/inventory");
+      router.refresh();
     } catch (error) {
-      console.error("Erro ao salvar:", error);
+      toast.error(error instanceof Error ? error.message : "Erro ao salvar produto");
     } finally {
       setSaving(false);
     }
@@ -137,15 +152,40 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
             </div>
           </div>
 
-          {/* Estoque */}
-          <div>
-            <label className="block text-[10px] font-black uppercase text-gray-400 mb-2 ml-1">Estoque</label>
-            <input
-              type="number"
-              className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-blue-500 focus:bg-white rounded-2xl outline-none transition-all font-bold text-gray-700"
-              value={formData.stock}
-              onChange={(e) => setFormData({ ...formData, stock: parseInt(e.target.value) || 0 })}
-            />
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-[10px] font-black uppercase text-gray-400 mb-2 ml-1">Estoque</label>
+              <input
+                type="number"
+                step="0.001"
+                min="0"
+                className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-blue-500 focus:bg-white rounded-2xl outline-none transition-all font-bold text-gray-700"
+                value={formData.stock}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    stock: e.target.value === "" ? 0 : Number(e.target.value),
+                  })
+                }
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] font-black uppercase text-gray-400 mb-2 ml-1">Unidade</label>
+              <select
+                className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-blue-500 focus:bg-white rounded-2xl outline-none transition-all font-bold text-gray-700"
+                value={formData.unit}
+                onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
+              >
+                {PRODUCT_UNITS.map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {item.label}
+                  </option>
+                ))}
+                {PRODUCT_UNITS.every((item) => item.value !== formData.unit) && (
+                  <option value={formData.unit}>{formData.unit.toUpperCase()}</option>
+                )}
+              </select>
+            </div>
           </div>
 
           <button

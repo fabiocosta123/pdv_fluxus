@@ -68,6 +68,7 @@ export async function updateProduct(id: string, input: unknown) {
       costPrice: data.costPrice,
       stock: data.stock,
       barCode: data.barCode ?? null,
+      unit: data.unit,
     },
   });
 }

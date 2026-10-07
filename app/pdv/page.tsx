@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { CashierModal } from "../components/CashierModal";
@@ -18,6 +18,11 @@ import {
   expectedAmount,
 } from "@/modules/cashier/conference";
 import { ArrowLeft } from "lucide-react";
+import {
+  findSuggestions,
+  parseSaleInput,
+  resolveProduct,
+} from "./product-lookup";
 import ProductSearch from "../components/ProductSearch";
 import type { CustomerRecord } from "@/modules/customers/types";
 
@@ -77,6 +82,9 @@ export default function PDVPage() {
   const [cashierReady, setCashierReady] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [searchResults, setSearchResults] = useState<Product[]>([]);
+  const [catalog, setCatalog] = useState<Product[]>([]);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const [remoteMatches, setRemoteMatches] = useState<Product[] | null>(null);
 
   const [cashierSummary, setCashierSummary] = useState<CashierReport | null>(null);
   const [countedValues, setCountedValues] = useState<{ [key: string]: number }>(
@@ -86,6 +94,15 @@ export default function PDVPage() {
   const [customer, setCustomer] = useState<CustomerRecord | null>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
+  const saleQuery = useMemo(() => parseSaleInput(barcode), [barcode]);
+  const localSuggestions = useMemo(() => {
+    if (!saleQuery.codeToSearch || saleQuery.isScaleLabel) {
+      return { items: [] as Product[], total: 0 };
+    }
+    return findSuggestions(catalog, saleQuery.codeToSearch);
+  }, [catalog, saleQuery]);
+  const suggestions = remoteMatches ?? localSuggestions.items;
+  const suggestionTotal = remoteMatches?.length ?? localSuggestions.total;
 
   // Totais calculados
   const total = cart.reduce((acc, item) => acc + item.subtotal, 0);
@@ -525,6 +542,7 @@ export default function PDVPage() {
       if (response.ok) {
         const products = await response.json();
         localStorage.setItem("localCatalog", JSON.stringify(products));
+        if (Array.isArray(products)) setCatalog(products);
       }
     } catch (error) {
       console.log("Modo Offline: Usando catálogo local pré-existente.");
@@ -533,6 +551,13 @@ export default function PDVPage() {
 
   //efeitos de monitoramento
   useEffect(() => {
+    try {
+      const cached = JSON.parse(localStorage.getItem("localCatalog") || "[]");
+      if (Array.isArray(cached)) setCatalog(cached);
+    } catch {
+      setCatalog([]);
+    }
+
     // Sincroniza vendas e catálogo ao iniciar
     syncOfflineSales();
     syncProductsToLocal();
@@ -606,94 +631,101 @@ export default function PDVPage() {
     toast.info("Item removido", { icon: "🗑️" });
   };
 
+  const commitFoundProduct = (product: Product, parsed = parseSaleInput(barcode)) => {
+    let quantity = parsed.quantityToLoad;
+    if (parsed.isScaleLabel && product.price > 0) {
+      quantity = parsed.priceFromLabel / (product.price / 100);
+    }
+    addToCart(product, quantity);
+    setBarcode("");
+    setHighlightedIndex(-1);
+    setRemoteMatches(null);
+    inputRef.current?.focus();
+  };
+
+  const chooseSuggestion = (list: Product[]) => {
+    if (highlightedIndex >= 0 && list[highlightedIndex]) return list[highlightedIndex];
+    if (list.length === 1) return list[0];
+    return undefined;
+  };
+
   // busca produto pelo código de barras ou nome
   const handleSearchProduct = async (e?: React.FormEvent) => {
     e?.preventDefault();
-    const inputVal = barcode.trim();
-    if (!inputVal) return;
+    const parsed = parseSaleInput(barcode);
+    if (!parsed.codeToSearch) return;
 
-    let quantityToLoad = 1;
-    let codeToSearch = inputVal;
-    let isScaleLabel = false;
-    let priceFromLabel = 0;
-
-    // identifica tipo de entrada
-    if (inputVal.length === 13 && inputVal.startsWith("2")) {
-      isScaleLabel = true;
-      codeToSearch = inputVal.substring(1, 6);
-      priceFromLabel = parseFloat(inputVal.substring(6, 11)) / 100;
-    } else if (inputVal.includes("*")) {
-      const parts = inputVal.split("*");
-      quantityToLoad = parseFloat(parts[0].replace(",", ".")) || 1;
-      codeToSearch = parts[1];
-    }
-
-    if (!codeToSearch) return;
-
-    // busca no localStorage offline
-    const localCatalog = JSON.parse(
-      localStorage.getItem("localCatalog") || "[]",
-    );
-    const product = localCatalog.find((p: Product) => {
-      const searchTerm = codeToSearch.toLowerCase();
-
-      // Verifica código de barras
-      const isBarcode = (p.barCode ?? "").toLowerCase() === searchTerm;
-
-
-      // Verifica se o termo está contido no nome do produto
-      const isName = p.name.toLowerCase().includes(searchTerm);
-
-      return isBarcode || isName;
-    });
-
-    if (product) {
-      if (product.isActive === false) {
-        toast.error("Produto inativado no estoque!");
-        setBarcode("");
+    if (remoteMatches) {
+      const picked = chooseSuggestion(remoteMatches);
+      if (!picked) {
+        toast.error("Há mais de um produto. Escolha na lista.");
         return;
       }
-      if (isScaleLabel) {
-        const productUnitPrice = product.price / 100;
-        quantityToLoad = priceFromLabel / productUnitPrice;
-      }
-      addToCart(product, quantityToLoad);
+      commitFoundProduct(picked, parsed);
+      return;
+    }
+
+    const decision = resolveProduct(
+      catalog,
+      parsed.codeToSearch,
+      highlightedIndex,
+      parsed.isScaleLabel,
+    );
+
+    if (decision.type === "match") {
+      commitFoundProduct(decision.product, parsed);
+      return;
+    }
+
+    if (decision.type === "inactive") {
+      toast.error("Produto inativado no estoque!");
       setBarcode("");
       return;
     }
 
-    // busca na api se não achou no cache ou se tem internet
-    try {
-      const response = await fetch(
-        `/api/products/search/${encodeURIComponent(codeToSearch)}`,
-      );
-      if (response.ok) {
-        const data = await response.json();
-        const list: Product[] = Array.isArray(data) ? data : [data];
-        const exact = list.find(
-          (item) =>
-            (item.barCode ?? "").toLowerCase() === codeToSearch.toLowerCase(),
-        );
-        const apiProduct = exact ?? (list.length === 1 ? list[0] : undefined);
-
-        if (!apiProduct) {
-          toast.error("Vários produtos encontrados. Use F1 para escolher.");
-        } else {
-          if (isScaleLabel) {
-            const productUnitPrice = apiProduct.price / 100;
-            quantityToLoad = priceFromLabel / productUnitPrice;
-          }
-
-          addToCart(apiProduct, quantityToLoad);
-        }
-      } else {
-        toast.error("Produto não encontrado");
-      }
-    } catch (error) {
-      toast.error("Offline: Produto não encontrado no catálogo local");
+    if (decision.type === "ambiguous") {
+      toast.error("Há mais de um produto. Escolha na lista.");
+      return;
     }
 
-    setBarcode("");
+    try {
+      const response = await fetch(
+        `/api/products/search/${encodeURIComponent(parsed.codeToSearch)}`,
+      );
+      if (!response.ok) {
+        toast.error("Produto não encontrado");
+        setBarcode("");
+        return;
+      }
+
+      const data = await response.json();
+      const list: Product[] = Array.isArray(data) ? data : [data];
+      const exact = list.find(
+        (item) =>
+          (item.barCode ?? "").toLowerCase() === parsed.codeToSearch.toLowerCase(),
+      );
+      const apiProduct = exact ?? (list.length === 1 ? list[0] : undefined);
+
+      if (!apiProduct) {
+        const visible = list
+          .filter((item) => item.isActive !== false)
+          .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+        if (visible.length === 0) {
+          toast.error("Produto não encontrado");
+          setBarcode("");
+          return;
+        }
+        setRemoteMatches(visible);
+        setHighlightedIndex(-1);
+        toast.error("Há mais de um produto. Escolha na lista.");
+        return;
+      }
+
+      commitFoundProduct(apiProduct, parsed);
+    } catch {
+      toast.error("Offline: Produto não encontrado no catálogo local");
+      setBarcode("");
+    }
   };
 
   // Monitor do Navegador
@@ -720,6 +752,7 @@ export default function PDVPage() {
           const data = await response.json();
           // Salva uma cópia de segurança para o modo offline
           localStorage.setItem("localCatalog", JSON.stringify(data));
+          if (Array.isArray(data)) setCatalog(data);
           console.log("Catálogo sincronizado para uso offline.");
         }
       } catch (error) {
@@ -858,21 +891,89 @@ export default function PDVPage() {
         {/* COLUNA DIREITA: BUSCA, ATALHOS E TOTAL */}
         <div className="w-full lg:w-[450px] flex flex-col gap-2 lg:gap-4 order-1 lg:order-2 shrink-0 h-full">
           {/* 1. CAMPO DE BUSCA */}
-          <div className="bg-white p-3 lg:p-6 rounded-lg shadow-sm border-t-4 border-blue-600">
-
-
+          <div className="relative z-20 bg-white p-3 lg:p-6 rounded-lg shadow-sm border-t-4 border-blue-600">
             <form onSubmit={handleSearchProduct}>
               <label className="text-[10px] font-bold uppercase text-gray-400 block mb-1">
                 Bipar item ou buscar
               </label>
-              <input
-                ref={inputRef}
-                type="text"
-                value={barcode}
-                onChange={(e) => setBarcode(e.target.value)}
-                className="w-full border-2 border-gray-300 rounded-lg p-3 lg:p-4 text-xl lg:text-4xl font-mono focus:border-blue-600 outline-none bg-gray-50 uppercase"
-                placeholder="CÓDIGO / NOME"
-              />
+              <div className="relative">
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={barcode}
+                  autoComplete="off"
+                  onChange={(e) => {
+                    setBarcode(e.target.value);
+                    setHighlightedIndex(-1);
+                    setRemoteMatches(null);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === "Escape") {
+                      setHighlightedIndex(-1);
+                      setRemoteMatches(null);
+                      return;
+                    }
+                    if (suggestions.length === 0) return;
+                    if (event.key === "ArrowDown") {
+                      event.preventDefault();
+                      setHighlightedIndex((current) => (current + 1) % suggestions.length);
+                    } else if (event.key === "ArrowUp") {
+                      event.preventDefault();
+                      setHighlightedIndex((current) =>
+                        current <= 0 ? suggestions.length - 1 : current - 1,
+                      );
+                    }
+                  }}
+                  className="w-full border-2 border-gray-300 rounded-lg p-3 lg:p-4 text-xl lg:text-4xl font-mono focus:border-blue-600 outline-none bg-gray-50 uppercase"
+                  placeholder="CÓDIGO / NOME"
+                />
+                {suggestions.length > 0 && (
+                  <ul className="absolute left-0 right-0 top-full z-30 mt-1 max-h-64 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-xl">
+                    {suggestions.map((product, index) => (
+                      <li key={product.id}>
+                        <button
+                          type="button"
+                          onPointerDown={(event) => {
+                            event.preventDefault();
+                            commitFoundProduct(product);
+                          }}
+                          className={`flex w-full items-center justify-between gap-3 px-3 py-2 text-left ${
+                            index === highlightedIndex ? "bg-blue-50" : "hover:bg-gray-50"
+                          }`}
+                        >
+                          <span className="font-bold uppercase text-gray-800">
+                            {product.name}
+                          </span>
+                          <span className="shrink-0 text-sm font-black text-blue-700">
+                            {(Number(product.price) / 100).toLocaleString("pt-BR", {
+                              style: "currency",
+                              currency: "BRL",
+                            })}
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                    {suggestions.length > 1 && highlightedIndex < 0 && (
+                      <li className="px-3 py-2 text-[10px] font-bold uppercase text-gray-400">
+                        Clique no produto ou use ↓ e Enter
+                      </li>
+                    )}
+                    {suggestionTotal > suggestions.length && (
+                      <li className="px-3 py-2 text-[10px] font-bold uppercase text-gray-400">
+                        Continue digitando para ver os outros{" "}
+                        {suggestionTotal - suggestions.length}
+                      </li>
+                    )}
+                  </ul>
+                )}
+                {!saleQuery.isScaleLabel &&
+                  /\p{L}/u.test(saleQuery.codeToSearch) &&
+                  suggestions.length === 0 && (
+                    <p className="absolute left-0 right-0 top-full z-30 mt-1 rounded-lg border border-gray-200 bg-white px-3 py-3 text-sm text-gray-400 shadow-xl">
+                      Nenhum produto encontrado.
+                    </p>
+                  )}
+              </div>
             </form>
           </div>
 

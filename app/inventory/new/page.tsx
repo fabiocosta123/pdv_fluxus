@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { MoneyInput } from "@/app/components/MoneyInput";
+import { PRODUCT_UNITS } from "@/modules/catalog/units";
 
 export default function NewInventoryPage() {
   const router = useRouter();
@@ -139,11 +140,11 @@ export default function NewInventoryPage() {
                     value={unit}
                     onChange={(e) => setUnit(e.target.value)}
                   >
-                    <option value="un">UNIDADE (UN)</option>
-                    <option value="kg">QUILOGRAMA (KG)</option>
-                    <option value="lt">LITRO (LT)</option>
-                    <option value="pc">PACOTE (PC)</option>
-                    <option value="cx">CAIXA (CX)</option>
+                    {PRODUCT_UNITS.map((item) => (
+                      <option key={item.value} value={item.value}>
+                        {item.label}
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>
