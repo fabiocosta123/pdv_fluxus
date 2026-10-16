@@ -251,9 +251,6 @@ export const PaymentModal = ({
                   <div>
                     <p className="font-bold text-sm">{customer.name}</p>
                     <p className="text-xs font-mono text-gray-500">{formatDocument(customer.document)}</p>
-                    <p className="text-xs text-blue-700 font-bold">
-                      Disponível: {availableNow == null ? "sem limite" : formatCurrency(availableNow)}
-                    </p>
                   </div>
                   <button type="button" onClick={() => setCustomer(null)} className="text-xs font-bold text-red-500">
                     Trocar
