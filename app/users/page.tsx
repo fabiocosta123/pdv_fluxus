@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ArrowLeft } from "lucide-react";
 import { ROLE_LABELS, type AuthUser } from "@/modules/auth/types";
+import { useAuth } from "../components/AccessGate";
 
 const ROLES = [
   { id: "OPERATOR", label: ROLE_LABELS.OPERATOR, hint: "Caixa e relatórios" },
@@ -14,8 +15,10 @@ const ROLES = [
 
 export default function UsersPage() {
   const router = useRouter();
+  const current = useAuth();
   const [users, setUsers] = useState<AuthUser[]>([]);
   const [form, setForm] = useState({ name: "", username: "", password: "", role: "OPERATOR" });
+  const [nextPasswords, setNextPasswords] = useState<Record<string, string>>({});
 
   const load = useCallback(async () => {
     const response = await fetch("/api/users");
@@ -46,6 +49,31 @@ export default function UsersPage() {
     toast.success("Usuário criado");
     setForm({ name: "", username: "", password: "", role: "OPERATOR" });
     await load();
+  }
+
+  async function resetPassword(user: AuthUser) {
+    const password = (nextPasswords[user.id] ?? "").trim();
+    if (password.length < 6) {
+      toast.error("A senha precisa ter pelo menos 6 caracteres");
+      return;
+    }
+    const response = await fetch(`/api/users/${user.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      toast.error(data.error || "Não foi possível redefinir a senha");
+      return;
+    }
+    setNextPasswords((currentPasswords) => ({ ...currentPasswords, [user.id]: "" }));
+    if (current?.id === user.id) {
+      toast.success("Senha redefinida. Entre de novo.");
+      router.replace("/login");
+      return;
+    }
+    toast.success("Senha redefinida. Essa pessoa precisa entrar de novo.");
   }
 
   async function saveUser(user: AuthUser, patch: { role?: string; active?: boolean }) {
@@ -110,6 +138,34 @@ export default function UsersPage() {
               >
                 {user.active ? "Desativar" : "Ativar"}
               </button>
+              <form
+                className="flex gap-2"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void resetPassword(user);
+                }}
+              >
+                <label className="sr-only" htmlFor={`password-${user.id}`}>
+                  Nova senha de {user.name}
+                </label>
+                <input
+                  id={`password-${user.id}`}
+                  type="password"
+                  autoComplete="new-password"
+                  placeholder="Nova senha"
+                  value={nextPasswords[user.id] ?? ""}
+                  onChange={(event) =>
+                    setNextPasswords((currentPasswords) => ({
+                      ...currentPasswords,
+                      [user.id]: event.target.value,
+                    }))
+                  }
+                  className="border rounded-lg px-3 py-2 w-36"
+                />
+                <button type="submit" className="text-xs font-bold text-blue-700">
+                  Redefinir
+                </button>
+              </form>
             </div>
           ))}
         </section>

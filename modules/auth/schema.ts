@@ -32,5 +32,16 @@ export const createUserSchema = z.object({
 export const updateUserSchema = z.object({
   role: role.optional(),
   active: z.boolean().optional(),
-  password: z.string().trim().optional(),
+  password: z.string().trim().min(6, "A senha precisa ter pelo menos 6 caracteres").optional(),
 }).refine((data) => data.role !== undefined || data.active !== undefined || Boolean(data.password), "Nada para salvar");
+
+export const changePasswordSchema = z
+  .object({
+    currentPassword: z.string().min(1, "Informe a senha atual"),
+    newPassword: password,
+    confirmPassword: z.string().min(1, "Confirme a nova senha"),
+  })
+  .refine((data) => data.newPassword === data.confirmPassword, {
+    message: "A confirmação não confere com a nova senha",
+    path: ["confirmPassword"],
+  });

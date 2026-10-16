@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { AppError } from "@/modules/shared/errors";
 import { parse } from "@/modules/shared/validation";
 import { can, type Area } from "./access";
-import { createUserSchema, loginSchema, setupSchema, updateUserSchema } from "./schema";
+import { changePasswordSchema, createUserSchema, loginSchema, setupSchema, updateUserSchema } from "./schema";
 import { ROLE_LABELS, type AuthUser } from "./types";
 
 const SESSION_MS = 12 * 60 * 60 * 1000;
@@ -129,10 +129,6 @@ export async function updateUser(id: string, input: unknown) {
   const current = await prisma.user.findUnique({ where: { id } });
   if (!current) throw new AppError("Usuário não encontrado", 404);
 
-  if (data.password !== undefined && data.password.length > 0 && data.password.length < 6) {
-    throw new AppError("A senha precisa ter pelo menos 6 caracteres", 400);
-  }
-
   const nextRole = (data.role ?? current.role) as UserRole;
   const nextActive = data.active ?? current.active;
   if (current.role === "OWNER" && current.active && !(nextRole === "OWNER" && nextActive)) {
@@ -151,9 +147,35 @@ export async function updateUser(id: string, input: unknown) {
     },
   });
 
-  if (!nextActive) {
+  if (data.password || !nextActive) {
     await prisma.authSession.deleteMany({ where: { userId: id } });
   }
 
   return toPublic(user);
+}
+
+export async function changeOwnPassword(token: string | null, input: unknown) {
+  if (!token) throw new AppError("Faça login", 401);
+  const data = parse(changePasswordSchema, input);
+  const session = await prisma.authSession.findUnique({
+    where: { tokenHash: hashToken(token) },
+    include: { user: true },
+  });
+  if (!session || session.expiresAt < new Date() || !session.user.active) {
+    throw new AppError("Faça login", 401);
+  }
+  if (!checkPassword(data.currentPassword, session.user.passwordHash)) {
+    throw new AppError("Senha atual incorreta", 400);
+  }
+  if (data.currentPassword === data.newPassword) {
+    throw new AppError("A nova senha precisa ser diferente da atual", 400);
+  }
+
+  await prisma.user.update({
+    where: { id: session.userId },
+    data: { passwordHash: hashPassword(data.newPassword) },
+  });
+  await prisma.authSession.deleteMany({
+    where: { userId: session.userId, NOT: { id: session.id } },
+  });
 }

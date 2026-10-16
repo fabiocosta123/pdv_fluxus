@@ -11,6 +11,7 @@ import {
   TrendingUp,
   LayoutDashboard,
   Shield,
+  KeyRound,
 } from "lucide-react";
 import { useAuth } from "./components/AccessGate";
 import { canAccessPath } from "@/modules/auth/access";
@@ -68,6 +69,13 @@ export default function HomePage() {
       icon: <Shield className="w-8 h-8" />,
       color: "bg-slate-700",
       path: "/users",
+    },
+    {
+      title: "Minha senha",
+      description: "Troque a senha desta conta",
+      icon: <KeyRound className="w-8 h-8" />,
+      color: "bg-zinc-700",
+      path: "/account/password",
     },
   ];
 
