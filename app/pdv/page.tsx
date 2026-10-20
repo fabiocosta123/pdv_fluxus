@@ -875,8 +875,8 @@ export default function PDVPage() {
   );
 
   return (
-    <>
-      <div className="flex items-center gap-4">
+    <div className="flex h-[100dvh] flex-col overflow-hidden bg-gray-100">
+      <div className="flex shrink-0 items-center gap-4 px-2 pt-2 lg:px-4 lg:pt-3">
         {/* Botão de Voltar Inteligente */}
         <button
           onClick={() => {
@@ -904,7 +904,7 @@ export default function PDVPage() {
           onCancel={() => router.push("/")}
         />
       )}
-      <div className="h-[100dvh] bg-gray-100 font-sans overflow-hidden flex flex-col lg:flex-row p-2 lg:p-4 gap-2 lg:gap-4">
+      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden bg-gray-100 p-2 font-sans lg:flex-row lg:gap-4 lg:p-4">
         {/* COLUNA ESQUERDA: LISTA DE PRODUTOS */}
         <div className="flex-1 bg-white rounded-lg shadow-sm flex flex-col overflow-hidden order-2 lg:order-1 h-full">
           <div className="p-3 border-b bg-blue-600 text-white flex justify-between items-center shrink-0">
@@ -928,7 +928,7 @@ export default function PDVPage() {
 
         {/* COLUNA DIREITA: BUSCA E TOTAL */}
         {/* COLUNA DIREITA: BUSCA, ATALHOS E TOTAL */}
-        <div className="w-full lg:w-[450px] flex flex-col gap-2 lg:gap-4 order-1 lg:order-2 shrink-0 h-full">
+        <div className="order-1 flex h-full min-h-0 w-full shrink-0 flex-col gap-2 lg:order-2 lg:w-[450px] lg:gap-3">
           {/* 1. CAMPO DE BUSCA */}
           <div className="relative z-20 bg-white p-3 lg:p-6 rounded-lg shadow-sm border-t-4 border-blue-600">
             <form onSubmit={handleSearchProduct}>
@@ -1017,7 +1017,7 @@ export default function PDVPage() {
           </div>
 
           {/* 2. TECLAS DE AJUDA, OPERAÇÕES E CANCELAMENTO */}
-          <div className="grid grid-cols-2 gap-2 flex-1 overflow-y-auto content-start">
+          <div className="grid min-h-0 flex-1 content-start grid-cols-2 gap-2 overflow-hidden">
             {[
               {
                 key: "F1",
@@ -1104,12 +1104,12 @@ export default function PDVPage() {
           </div>
 
           {/* 3. BLOCO FINANCEIRO (TOTAL + BOTÃO) - Fica na parte de baixo */}
-          <div className="bg-blue-900 text-white p-4 lg:p-6 rounded-xl shadow-lg flex flex-col gap-4 mt-auto">
-            <div className="flex flex-col border-b border-blue-800 pb-4">
-              <span className="text-blue-200 text-xs lg:text-sm uppercase font-bold tracking-widest">
+          <div className="mt-auto flex shrink-0 flex-col gap-2 rounded-xl bg-blue-900 p-3 text-white shadow-lg lg:p-4">
+            <div className="flex flex-col border-b border-blue-800 pb-2">
+              <span className="text-xs font-bold uppercase tracking-widest text-blue-200">
                 Total a Pagar
               </span>
-              <div className="text-4xl lg:text-6xl font-black tabular-nums">
+              <div className="text-3xl font-black tabular-nums lg:text-5xl">
                 {(total / 100).toLocaleString("pt-BR", {
                   style: "currency",
                   currency: "BRL",
@@ -1120,7 +1120,7 @@ export default function PDVPage() {
             <button
               onClick={openPayment}
               disabled={cart.length === 0}
-              className={`w-full py-5 lg:py-6 rounded-xl text-lg lg:text-2xl font-black uppercase transition-all active:scale-95 flex flex-col items-center justify-center leading-tight ${cart.length === 0
+              className={`flex w-full flex-col items-center justify-center rounded-xl py-3 text-base font-black uppercase leading-tight transition-all active:scale-95 lg:py-4 lg:text-xl ${cart.length === 0
                 ? "bg-blue-800 text-blue-400 cursor-not-allowed"
                 : "bg-green-500 hover:bg-green-400 text-white shadow-inner"
                 }`}
@@ -1534,6 +1534,6 @@ export default function PDVPage() {
           {lastSale && <SaleReceipt lastSale={lastSale} store={store} printWidth={printSize} />}
         </div>
       </div>
-    </>
+    </div>
   );
 }
