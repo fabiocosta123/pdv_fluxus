@@ -10,9 +10,10 @@ import { SaleReceipt } from "@/app/components/SaleReceipt";
 import { STORE_DEFAULTS } from "@/modules/settings/defaults";
 import type { StoreSettings } from "@/modules/settings/types";
 import { OpenCashierModal } from "../components/OpenCashierModal";
-import type { CashierReport } from "@/modules/cashier/types";
+import type { CashierReport, CountedValues } from "@/modules/cashier/types";
 import {
   CONFERENCE_METHODS,
+  cardSwap,
   cashDrawerLines,
   differenceLabel,
   expectedAmount,
@@ -99,9 +100,11 @@ export default function PDVPage() {
   const [remoteMatches, setRemoteMatches] = useState<Product[] | null>(null);
 
   const [cashierSummary, setCashierSummary] = useState<CashierReport | null>(null);
-  const [countedValues, setCountedValues] = useState<{ [key: string]: number }>(
+  const [countedValues, setCountedValues] = useState<Partial<CountedValues>>(
     {},
   );
+  const [expectedValues, setExpectedValues] = useState<CountedValues | null>(null);
+  const [conferenceKey, setConferenceKey] = useState(0);
 
   const [customer, setCustomer] = useState<CustomerRecord | null>(null);
 
@@ -420,6 +423,21 @@ export default function PDVPage() {
     setIsPaymentModalOpen(true);
   }, [cart, warnOverStock]);
 
+  const openConference = useCallback(async () => {
+    const response = await fetch("/api/cashier/session/expected");
+    const data = await response.json().catch(() => null);
+    if (!response.ok || !data) {
+      toast.error(data?.error || "Não foi possível carregar o valor do sistema");
+      setExpectedValues(null);
+    } else {
+      setExpectedValues(data);
+    }
+    setCountedValues({});
+    setConferenceKey((current) => current + 1);
+    setModalType("FECHAMENTO");
+    setIsCashModalOpen(true);
+  }, []);
+
   // atalhos teclado com travas de segurança
   const handleShortcuts = useCallback(
     (key: string) => {
@@ -501,8 +519,7 @@ export default function PDVPage() {
           break;
         case "F9":
           if (isCartEmpty) {
-            setModalType("FECHAMENTO");
-            setIsCashModalOpen(true);
+            void openConference();
           } else {
             toast.error("Finalize a venda primeiro");
           }
@@ -525,6 +542,7 @@ export default function PDVPage() {
       finalizarVenda,
       removeLastItem,
       openPayment,
+      openConference,
     ],
   );
 
@@ -873,6 +891,19 @@ export default function PDVPage() {
     },
     [],
   );
+
+  const formatCents = (cents: number) =>
+    (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+  const debitDiff =
+    expectedValues && countedValues.DÉBITO !== undefined
+      ? countedValues.DÉBITO - expectedValues.DÉBITO
+      : null;
+  const creditDiff =
+    expectedValues && countedValues.CRÉDITO !== undefined
+      ? countedValues.CRÉDITO - expectedValues.CRÉDITO
+      : null;
+  const swap = debitDiff !== null && creditDiff !== null ? cardSwap(debitDiff, creditDiff) : null;
 
   return (
     <div className="flex h-[100dvh] flex-col overflow-hidden bg-gray-100">
@@ -1470,14 +1501,14 @@ export default function PDVPage() {
         )}
         {modalType === "FECHAMENTO" && isCashModalOpen && (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[250] p-4">
-            <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden">
-              <div className="p-6 bg-gray-900 text-white flex justify-between items-center">
+            <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+              <div className="p-6 bg-gray-900 text-white flex justify-between items-center shrink-0">
                 <div>
                   <h2 className="text-xl font-black uppercase tracking-tighter">
                     Conferência de Caixa
                   </h2>
                   <p className="text-xs text-gray-400">
-                    Informe o valor conferido de cada meio
+                    Informe o valor da maquininha e da gaveta. A quebra não impede o fechamento.
                   </p>
                 </div>
                 <button
@@ -1488,34 +1519,64 @@ export default function PDVPage() {
                 </button>
               </div>
 
-              <div className="p-6 space-y-4">
-                {CONFERENCE_METHODS.map((method) => (
-                  <div key={method} className="flex items-center gap-4">
-                    <label className="w-28 font-bold text-gray-600 text-sm">
-                      {method}
-                    </label>
-                    <div className="relative flex-1">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold">
-                        R$
-                      </span>
-                      <input
-                        type="number"
-                        step="0.01"
-                        placeholder="0,00"
-                        className="w-full border-2 border-gray-200 rounded-lg py-3 pl-10 pr-4 text-xl font-mono focus:border-blue-600 outline-none"
-                        onChange={(e) => {
-                          const val = Math.round(
-                            parseFloat(e.target.value || "0") * 100,
-                          );
-                          setCountedValues((prev) => ({
-                            ...prev,
-                            [method]: val,
-                          }));
-                        }}
-                      />
+              <div key={conferenceKey} className="p-6 space-y-4 overflow-y-auto">
+                {CONFERENCE_METHODS.map((method) => {
+                  const expected = expectedValues?.[method];
+                  const counted = countedValues[method];
+                  const diff = expected !== undefined && counted !== undefined ? counted - expected : null;
+                  return (
+                    <div key={method} className="flex items-start gap-4">
+                      <label className="w-28 pt-3 font-bold text-gray-600 text-sm" htmlFor={`count-${method}`}>
+                        {method}
+                      </label>
+                      <div className="flex-1">
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold">
+                            R$
+                          </span>
+                          <input
+                            id={`count-${method}`}
+                            type="number"
+                            step="0.01"
+                            placeholder="0,00"
+                            className="w-full border-2 border-gray-200 rounded-lg py-3 pl-10 pr-4 text-xl font-mono focus:border-blue-600 outline-none"
+                            onChange={(e) => {
+                              const raw = e.target.value.trim();
+                              setCountedValues((prev) => {
+                                if (raw === "") {
+                                  const next = { ...prev };
+                                  delete next[method];
+                                  return next;
+                                }
+                                const val = Math.round(parseFloat(raw) * 100);
+                                if (!Number.isFinite(val)) return prev;
+                                return { ...prev, [method]: val };
+                              });
+                            }}
+                          />
+                        </div>
+                        {expected !== undefined && (
+                          <p className="mt-1 text-xs text-gray-500">
+                            No sistema {formatCents(expected)}
+                            {diff !== null && diff !== 0 && (
+                              <span className={diff < 0 ? "font-bold text-red-600" : "font-bold text-amber-700"}>
+                                {" "}
+                                · {differenceLabel(diff)} {formatCents(Math.abs(diff))}
+                              </span>
+                            )}
+                            {diff === 0 && <span className="font-bold text-emerald-700"> · OK</span>}
+                          </p>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
+
+                {swap && (
+                  <p className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm font-bold text-amber-900">
+                    O total do cartão confere. Falta {formatCents(swap.amount)} no {swap.missing} e sobra o mesmo valor no {swap.extra}.
+                  </p>
+                )}
 
                 <div className="pt-6 border-t">
                   <button

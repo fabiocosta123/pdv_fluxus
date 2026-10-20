@@ -121,6 +121,24 @@ async function loadSession(id: string, db: CashierDb) {
   return session;
 }
 
+export async function previewOpenCashier(): Promise<CountedValues | null> {
+  const open = await prisma.cashierSession.findFirst({
+    where: { status: "OPEN" },
+    orderBy: { openedAt: "desc" },
+    select: { id: true },
+  });
+  if (!open) return null;
+
+  const summary = summarize(await loadSession(open.id, prisma));
+  return {
+    DINHEIRO: summary.moneyExpected,
+    DÉBITO: summary.salesByMethod.DÉBITO ?? 0,
+    CRÉDITO: summary.salesByMethod.CRÉDITO ?? 0,
+    PIX: summary.salesByMethod.PIX ?? 0,
+    CARTEIRA: summary.salesByMethod.CARTEIRA ?? 0,
+  };
+}
+
 export async function getOpenSession(): Promise<OpenCashierSession | null> {
   const session = await prisma.cashierSession.findFirst({
     where: { status: "OPEN" },

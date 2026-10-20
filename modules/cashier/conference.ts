@@ -38,3 +38,12 @@ export function differenceLabel(cents: number) {
   if (cents > 0) return "Sobra";
   return "OK";
 }
+
+export function cardSwap(debitDiff: number, creditDiff: number) {
+  if (debitDiff === 0 || creditDiff === 0 || debitDiff + creditDiff !== 0) return null;
+  return {
+    missing: debitDiff < 0 ? "débito" : "crédito",
+    extra: debitDiff < 0 ? "crédito" : "débito",
+    amount: Math.abs(debitDiff),
+  };
+}
