@@ -22,8 +22,10 @@ export function can(role: UserRole, area: Area) {
 export function areaForPath(pathname: string): Area | null {
   if (pathname === "/" || pathname.startsWith("/login")) return null;
   if (pathname.startsWith("/pdv")) return "pos";
+  if (pathname.startsWith("/sales")) return "pos";
   if (pathname.startsWith("/report")) return "reports";
   if (pathname.startsWith("/inventory")) return "inventory";
+  if (pathname.startsWith("/purchases")) return "inventory";
   if (pathname.startsWith("/finance")) return "finance";
   if (pathname.startsWith("/management/customer")) return "customers";
   if (pathname.startsWith("/settings")) return "settings";

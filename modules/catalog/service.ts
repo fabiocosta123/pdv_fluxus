@@ -1,11 +1,38 @@
 import { prisma } from "@/lib/prisma";
 import { AppError } from "@/modules/shared/errors";
 import { parse } from "@/modules/shared/validation";
+import { icmsUsesRate, pisCofinsUsesRate } from "./fiscal";
 import {
   createProductSchema,
   setProductActiveSchema,
   updateProductSchema,
 } from "./schema";
+
+function fiscalData(data: {
+  ncm: string;
+  cest?: string | null;
+  cfop: string;
+  origin: number;
+  icmsCst: string;
+  icmsRate: number;
+  pisCst: string;
+  pisRate: number;
+  cofinsCst: string;
+  cofinsRate: number;
+}) {
+  return {
+    ncm: data.ncm,
+    cest: data.cest ?? null,
+    cfop: data.cfop,
+    origin: data.origin,
+    icmsCst: data.icmsCst,
+    icmsRate: icmsUsesRate(data.icmsCst) ? data.icmsRate : 0,
+    pisCst: data.pisCst,
+    pisRate: pisCofinsUsesRate(data.pisCst) ? data.pisRate : 0,
+    cofinsCst: data.cofinsCst,
+    cofinsRate: pisCofinsUsesRate(data.cofinsCst) ? data.cofinsRate : 0,
+  };
+}
 
 export async function listProducts() {
   return prisma.product.findMany({
@@ -51,6 +78,9 @@ export async function createProduct(input: unknown) {
       costPrice: data.costPrice ?? 0,
       stock: data.stock ?? 0,
       unit: data.unit?.toLowerCase() || "un",
+      supplierName: data.supplierName ?? null,
+      supplierVisitDays: data.supplierVisitDays ?? null,
+      ...fiscalData(data),
       isActive: true,
     },
   });
@@ -69,6 +99,9 @@ export async function updateProduct(id: string, input: unknown) {
       stock: data.stock,
       barCode: data.barCode ?? null,
       unit: data.unit,
+      supplierName: data.supplierName ?? null,
+      supplierVisitDays: data.supplierVisitDays ?? null,
+      ...fiscalData(data),
     },
   });
 }

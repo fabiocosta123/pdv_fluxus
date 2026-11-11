@@ -7,6 +7,33 @@ import { ArrowLeft, ArrowRight, CalendarClock, Wallet } from "lucide-react";
 import { money, showDate } from "@/app/finance/format";
 import type { FinanceSummary } from "@/modules/finance/types";
 
+function periodLength(from: string, to: string) {
+  const [fromYear, fromMonth, fromDay] = from.split("-").map(Number);
+  const [toYear, toMonth, toDay] = to.split("-").map(Number);
+  const start = Date.UTC(fromYear, fromMonth - 1, fromDay);
+  const end = Date.UTC(toYear, toMonth - 1, toDay);
+  return Math.round((end - start) / 86_400_000) + 1;
+}
+
+function salesMovement(current: number, previous: number, from: string, to: string) {
+  const days = periodLength(from, to);
+  const compared = days === 1 ? "ao dia anterior" : `aos ${days} dias anteriores`;
+  const empty = days === 1 ? "O dia anterior não teve venda." : `Os ${days} dias anteriores não tiveram venda.`;
+  const change = current - previous;
+  if (current === 0 && previous === 0) {
+    return { text: "Nenhuma venda neste período.", tone: "flat" as const };
+  }
+  if (previous === 0) {
+    return { text: `Aumentaram ${money(change)}. ${empty}`, tone: "up" as const };
+  }
+  const rate = `${Math.abs((change / previous) * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
+  if (change > 0) return { text: `Aumentaram ${money(change)} (${rate}) em relação ${compared}.`, tone: "up" as const };
+  if (change < 0) {
+    return { text: `Diminuíram ${money(Math.abs(change))} (${rate}) em relação ${compared}.`, tone: "down" as const };
+  }
+  return { text: `Ficaram iguais em relação ${compared}.`, tone: "flat" as const };
+}
+
 export default function FinancePage() {
   const router = useRouter();
   const [summary, setSummary] = useState<FinanceSummary | null>(null);
@@ -33,6 +60,9 @@ export default function FinancePage() {
   }, [load]);
 
   const balance = summary ? summary.inflowTotal - summary.expensePaid : 0;
+  const movement = summary
+    ? salesMovement(summary.salesTotal, summary.previousSalesTotal, summary.from, summary.to)
+    : null;
   const tight = summary?.tightDay ?? null;
   const tightWhen = !tight || !summary
     ? ""
@@ -45,7 +75,7 @@ export default function FinancePage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b px-6 py-4 flex items-center gap-4">
-        <button onClick={() => router.push("/")} className="p-2 rounded-full hover:bg-gray-100">
+        <button onClick={() => router.push("/management")} className="p-2 rounded-full hover:bg-gray-100">
           <ArrowLeft className="w-6 h-6 text-gray-600" />
         </button>
         <div>
@@ -74,6 +104,36 @@ export default function FinancePage() {
 
         {summary && (
           <>
+            <section className="grid md:grid-cols-2 gap-4">
+              <article className="bg-white rounded-2xl border p-5">
+                <p className="text-[10px] font-black uppercase text-gray-400">Vendas</p>
+                <p className="text-2xl font-black text-gray-800">{money(summary.salesTotal)}</p>
+                <p
+                  className={`text-sm mt-1 ${
+                    movement?.tone === "up"
+                      ? "text-emerald-700"
+                      : movement?.tone === "down"
+                        ? "text-red-600"
+                        : "text-gray-500"
+                  }`}
+                >
+                  {movement?.text}
+                </p>
+              </article>
+              <article className="bg-white rounded-2xl border p-5">
+                <p className="text-[10px] font-black uppercase text-gray-400">Lucro</p>
+                <p className={`text-2xl font-black ${summary.profit < 0 ? "text-red-600" : "text-gray-800"}`}>
+                  {money(summary.profit)}
+                </p>
+                <p className="text-sm text-gray-500 mt-1">
+                  {summary.salesTotal > 0
+                    ? `${((summary.profit / summary.salesTotal) * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}% sobre as vendas`
+                    : "Sem vendas neste período."}
+                </p>
+                <p className="text-xs text-gray-400 mt-1">Preço vendido menos o custo cadastrado dos produtos.</p>
+              </article>
+            </section>
+
             <section className="grid sm:grid-cols-3 gap-4">
               <Stat label="Entrou" value={money(summary.inflowTotal)} hint="Vendas à vista e recebimentos" />
               <Stat label="Saiu" value={money(summary.expensePaid)} hint="Despesas pagas no período" />

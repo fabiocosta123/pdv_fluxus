@@ -66,9 +66,20 @@ model Product {
   barCode   String?    @unique
   price     Int
   stock     Decimal    @default(0) @db.Decimal(10, 3)
-  unit      String     @default("UN")
-  ncm       String?
+  unit        String  @default("UN")
+  ncm         String?
+  cest        String?
+  cfop        String  @default("5102")
+  origin      Int     @default(0)
+  icmsCst     String  @default("00")
+  icmsRate    Int     @default(0)
+  pisCst      String  @default("01")
+  pisRate     Int     @default(65)
+  cofinsCst   String  @default("01")
+  cofinsRate  Int     @default(300)
   costPrice Decimal    @default(0) @db.Decimal(65, 30)
+  supplierName      String?
+  supplierVisitDays Int?
   isActive  Boolean    @default(true)
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt

@@ -59,4 +59,7 @@ export type FinanceSummary = {
   overdueCount: number;
   tightDay: FinanceDueDay | null;
   upcoming: FinanceDueDay[];
+  salesTotal: number;
+  previousSalesTotal: number;
+  profit: number;
 };

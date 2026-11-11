@@ -34,6 +34,40 @@ function periodBounds(from: string, to: string) {
   };
 }
 
+function addCalendarDays(iso: string, days: number) {
+  const [year, month, day] = iso.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
+}
+
+function spanDays(from: string, to: string) {
+  const [fromYear, fromMonth, fromDay] = from.split("-").map(Number);
+  const [toYear, toMonth, toDay] = to.split("-").map(Number);
+  const start = Date.UTC(fromYear, fromMonth - 1, fromDay);
+  const end = Date.UTC(toYear, toMonth - 1, toDay);
+  return Math.round((end - start) / 86_400_000) + 1;
+}
+
+async function salesResult(start: Date, end: Date) {
+  const [sales, items] = await Promise.all([
+    prisma.sale.aggregate({
+      where: { status: "COMPLETED", createdAt: { gte: start, lte: end } },
+      _sum: { total: true },
+    }),
+    prisma.saleItem.findMany({
+      where: { sale: { status: "COMPLETED", createdAt: { gte: start, lte: end } } },
+      select: { quantity: true, subtotal: true, product: { select: { costPrice: true } } },
+    }),
+  ]);
+
+  let cost = 0;
+  for (const item of items) {
+    cost += Math.round(Number(item.product.costPrice) * Number(item.quantity));
+  }
+
+  const salesTotal = sales._sum.total ?? 0;
+  return { salesTotal, profit: salesTotal - cost };
+}
+
 function dateOnly(value: Date) {
   const year = value.getUTCFullYear();
   const month = String(value.getUTCMonth() + 1).padStart(2, "0");
@@ -188,6 +222,14 @@ export async function getFinanceSummary(fromInput?: string | null, toInput?: str
 
   const days = dueDays(pendingExpenses);
   const overdue = days.filter((day) => day.date < today);
+  const length = spanDays(data.from, data.to);
+  const previousTo = addCalendarDays(data.from, -1);
+  const previousFrom = addCalendarDays(previousTo, -(length - 1));
+  const { start: previousStart, end: previousEnd } = periodBounds(previousFrom, previousTo);
+  const [currentSales, previousSales] = await Promise.all([
+    salesResult(start, end),
+    salesResult(previousStart, previousEnd),
+  ]);
 
   return {
     today,
@@ -205,6 +247,9 @@ export async function getFinanceSummary(fromInput?: string | null, toInput?: str
     overdueCount: overdue.reduce((sum, day) => sum + day.count, 0),
     tightDay: tightest(days),
     upcoming: days.filter((day) => day.date >= today).slice(0, 5),
+    salesTotal: currentSales.salesTotal,
+    previousSalesTotal: previousSales.salesTotal,
+    profit: currentSales.profit,
   };
 }
 

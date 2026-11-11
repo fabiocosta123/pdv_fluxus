@@ -14,7 +14,9 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { MoneyInput } from "@/app/components/MoneyInput";
+import { SUPPLIER_VISITS } from "@/modules/catalog/supplier";
 import { PRODUCT_UNITS } from "@/modules/catalog/units";
+import { FiscalFields, emptyFiscalDraft, fiscalPayload } from "@/app/inventory/FiscalFields";
 
 export default function NewInventoryPage() {
   const router = useRouter();
@@ -27,6 +29,9 @@ export default function NewInventoryPage() {
   const [price, setPrice] = useState(0);     // Centavos
   const [stock, setStock] = useState("");
   const [unit, setUnit] = useState("un");
+  const [supplierName, setSupplierName] = useState("");
+  const [supplierVisitDays, setSupplierVisitDays] = useState("");
+  const [fiscal, setFiscal] = useState(emptyFiscalDraft);
 
   // Cálculo de Margem em tempo real
   const calculateMargin = () => {
@@ -41,7 +46,16 @@ export default function NewInventoryPage() {
     e.preventDefault();
     
     if (price <= 0) return toast.error("O preço de venda deve ser maior que zero");
-    
+    const taxes = fiscalPayload(fiscal);
+    if (
+      taxes.icmsRate == null || taxes.pisRate == null || taxes.cofinsRate == null
+      || (fiscal.icmsCst === "00" || fiscal.icmsCst === "20" ? taxes.icmsRate <= 0 : false)
+      || (fiscal.pisCst === "01" || fiscal.pisCst === "49" ? taxes.pisRate <= 0 : false)
+      || (fiscal.cofinsCst === "01" || fiscal.cofinsCst === "49" ? taxes.cofinsRate <= 0 : false)
+    ) {
+      return toast.error("Informe as alíquotas dos impostos tributados, com até duas casas");
+    }
+
     setLoading(true);
 
     try {
@@ -55,6 +69,9 @@ export default function NewInventoryPage() {
           price,
           stock: Number(stock),
           unit,
+          supplierName,
+          supplierVisitDays: supplierVisitDays ? Number(supplierVisitDays) : null,
+          ...taxes,
           isActive: true
         }),
       });
@@ -148,6 +165,42 @@ export default function NewInventoryPage() {
                   </select>
                 </div>
               </div>
+            </div>
+
+            <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-gray-100 space-y-6">
+              <h2 className="font-black text-gray-800 uppercase tracking-tighter">Fornecedor</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[10px] font-black uppercase text-gray-400 mb-2 block ml-1">Nome do fornecedor</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: Distribuidora Norte"
+                    className="w-full p-4 bg-gray-50 border-2 border-transparent rounded-2xl focus:border-blue-500 focus:bg-white outline-none transition-all font-bold text-gray-700 shadow-inner"
+                    value={supplierName}
+                    onChange={(event) => setSupplierName(event.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-black uppercase text-gray-400 mb-2 block ml-1">Frequência da visita</label>
+                  <select
+                    className="w-full p-4 bg-gray-50 border-2 border-transparent rounded-2xl focus:border-blue-500 focus:bg-white outline-none transition-all font-bold text-gray-700 shadow-inner"
+                    value={supplierVisitDays}
+                    onChange={(event) => setSupplierVisitDays(event.target.value)}
+                  >
+                    <option value="">Não informada</option>
+                    {SUPPLIER_VISITS.map((item) => (
+                      <option key={item.days} value={item.days}>
+                        {item.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-gray-100 space-y-6">
+              <h2 className="font-black text-gray-800 uppercase tracking-tighter">Dados fiscais</h2>
+              <FiscalFields value={fiscal} onChange={setFiscal} />
             </div>
 
             {/* SEÇÃO DE ESTOQUE */}

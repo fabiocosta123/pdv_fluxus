@@ -3,14 +3,11 @@ import React from "react";
 import { useRouter } from "next/navigation";
 import {
   ShoppingCart,
+  Receipt,
   BarChart3,
-  Package,
-  Users,
-  Settings,
-  DollarSign,
   TrendingUp,
   LayoutDashboard,
-  Shield,
+  LayoutGrid,
   KeyRound,
 } from "lucide-react";
 import { useAuth } from "./components/AccessGate";
@@ -29,46 +26,18 @@ export default function HomePage() {
       path: "/pdv",
     },
     {
+      title: "Vendas",
+      description: "Histórico, impressão e estorno",
+      icon: <Receipt className="w-8 h-8" />,
+      color: "bg-sky-700",
+      path: "/sales",
+    },
+    {
       title: "Relatórios",
       description: "Histórico de fechamentos",
       icon: <BarChart3 className="w-8 h-8" />,
       color: "bg-purple-600",
       path: "/report/cashier",
-    },
-    {
-      title: "Estoque",
-      description: "Gestão de produtos e preços",
-      icon: <Package className="w-8 h-8" />,
-      color: "bg-orange-500",
-      path: "/inventory",
-    },
-    {
-      title: "Financeiro",
-      description: "Painel, contas a pagar e a receber",
-      icon: <DollarSign className="w-8 h-8" />,
-      color: "bg-emerald-600",
-      path: "/finance",
-    },
-    {
-      title: "Clientes",
-      description: "Cadastro, crédito e histórico",
-      icon: <Users className="w-8 h-8" />,
-      color: "bg-indigo-500",
-      path: "/management/customer",
-    },
-    {
-      title: "Configurações",
-      description: "Loja e impressão do cupom",
-      icon: <Settings className="w-8 h-8" />,
-      color: "bg-gray-600",
-      path: "/settings",
-    },
-    {
-      title: "Usuários",
-      description: "Níveis de acesso",
-      icon: <Shield className="w-8 h-8" />,
-      color: "bg-slate-700",
-      path: "/users",
     },
     {
       title: "Minha senha",
@@ -79,8 +48,24 @@ export default function HomePage() {
     },
   ];
 
+  const officePaths = ["/inventory", "/purchases", "/finance", "/management/customer", "/settings", "/users"];
+  const allowed = user ? menuItems.filter((item) => canAccessPath(user.role, item.path)) : [];
   const visibleItems = user
-    ? menuItems.filter((item) => canAccessPath(user.role, item.path))
+    ? [
+        ...allowed.filter((item) => item.path !== "/account/password"),
+        ...(officePaths.some((path) => canAccessPath(user.role, path))
+          ? [
+              {
+                title: "Gestão",
+                description: "Estoque, compras, financeiro e cadastros",
+                icon: <LayoutGrid className="w-8 h-8" />,
+                color: "bg-amber-600",
+                path: "/management",
+              },
+            ]
+          : []),
+        ...allowed.filter((item) => item.path === "/account/password"),
+      ]
     : [];
 
   async function logout() {

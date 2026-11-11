@@ -31,7 +31,7 @@ export default function SettingsPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b px-6 py-4 flex items-center gap-4">
-        <button onClick={() => router.push("/")} className="p-2 rounded-full hover:bg-gray-100">
+        <button onClick={() => router.push("/management")} className="p-2 rounded-full hover:bg-gray-100">
           <ArrowLeft className="w-6 h-6 text-gray-600" />
         </button>
         <div>

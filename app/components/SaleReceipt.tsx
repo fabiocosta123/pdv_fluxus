@@ -10,6 +10,7 @@ interface ReceiptProps {
     payments: any[];
     createdAt: string;
     change?: number;
+    status?: string;
     customer?: {
       name: string;
       document: string;
@@ -19,13 +20,27 @@ interface ReceiptProps {
   printWidth?: PrintWidthId;
 }
 
+export function ReceiptPageStyle({ width }: { width: PrintWidthId }) {
+  const narrow = width === "58mm";
+  return (
+    <style>{`
+      @media print {
+        @page { size: ${narrow ? "58mm auto" : "80mm auto"}; margin: 0; }
+        html, body { width: ${narrow ? "48mm" : "72mm"} !important; margin: 0 !important; padding: 0 !important; }
+      }
+    `}</style>
+  );
+}
+
 export const SaleReceipt = ({ lastSale, store = STORE_DEFAULTS, printWidth = "80mm" }: ReceiptProps) => {
   if (!lastSale) return null;
 
-  const width = printWidth === "58mm" ? "w-[58mm]" : "w-[80mm]";
+  const narrow = printWidth === "58mm";
 
   return (
-    <div className={`print-area font-mono text-[12px] leading-tight text-black p-2 ${width}`}>
+    <>
+    <ReceiptPageStyle width={printWidth} />
+    <div className={`print-area ${narrow ? "print-58" : "print-80"} font-mono leading-tight text-black`}>
       <div className="text-center border-b border-dashed border-black pb-2 mb-2">
         <h2 className="text-sm font-bold uppercase">{store.tradeName}</h2>
         <p className="text-[10px]">{store.address}</p>
@@ -36,6 +51,7 @@ export const SaleReceipt = ({ lastSale, store = STORE_DEFAULTS, printWidth = "80
       <div className="mb-2 text-[10px]">
         <p>DATA: {new Date(lastSale.createdAt).toLocaleString("pt-BR")}</p>
         <p>PEDIDO: #{lastSale.id.toString().slice(-6).toUpperCase()}</p>
+        {lastSale.status === "CANCELED" && <p className="font-bold">ESTORNADA</p>}
       </div>
 
       {/* Dentro do Receipt.tsx */}
@@ -104,5 +120,6 @@ export const SaleReceipt = ({ lastSale, store = STORE_DEFAULTS, printWidth = "80
         <p>(13) 99628-5971</p>
       </div>
     </div>
+    </>
   );
 };

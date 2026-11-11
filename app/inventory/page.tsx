@@ -82,7 +82,7 @@ export default function InventoryPage() {
       <header className="bg-white border-b px-6 py-4 flex justify-between items-center sticky top-0 z-20 shadow-sm">
         <div className="flex items-center gap-4">
           <button
-            onClick={() => router.push("/")}
+            onClick={() => router.push("/management")}
             className="p-2 hover:bg-gray-100 rounded-xl transition-all text-gray-500"
           >
             <ArrowLeft size={24} />
@@ -186,6 +186,9 @@ export default function InventoryPage() {
                           </p>
                           <span className="text-[9px] font-black bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded uppercase tracking-tighter">
                             {product.unit || "un"}
+                          </span>
+                          <span className={`ml-2 text-[9px] font-black px-1.5 py-0.5 rounded uppercase tracking-tighter ${product.ncm ? "bg-blue-50 text-blue-700" : "bg-amber-50 text-amber-700"}`}>
+                            {product.ncm ? `NCM ${product.ncm}` : "Sem NCM"}
                           </span>
                         </td>
                         <td className="px-6 py-4 font-mono text-xs text-gray-400 uppercase">

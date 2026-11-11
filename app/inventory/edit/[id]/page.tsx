@@ -3,7 +3,15 @@ import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Save, Loader2, Barcode } from "lucide-react";
 import { toast } from "sonner";
+import { SUPPLIER_VISITS } from "@/modules/catalog/supplier";
 import { normalizeUnit, PRODUCT_UNITS } from "@/modules/catalog/units";
+import {
+  FiscalFields,
+  emptyFiscalDraft,
+  fiscalDraftFromProduct,
+  fiscalPayload,
+  type FiscalDraft,
+} from "@/app/inventory/FiscalFields";
 
 export default function EditProductPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
@@ -12,6 +20,7 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [fiscal, setFiscal] = useState<FiscalDraft>(emptyFiscalDraft);
   const [formData, setFormData] = useState({
     name: "",
     price: 0,
@@ -19,6 +28,8 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
     stock: 0,
     barCode: "",
     unit: "un",
+    supplierName: "",
+    supplierVisitDays: "",
   });
 
   useEffect(() => {
@@ -39,7 +50,10 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
           stock: toNumber(data.stock),
           barCode: data.barCode || "",
           unit: normalizeUnit(data.unit),
+          supplierName: data.supplierName || "",
+          supplierVisitDays: data.supplierVisitDays ? String(data.supplierVisitDays) : "",
         });
+        setFiscal(fiscalDraftFromProduct(data));
       } catch (error) {
         console.error("Erro ao carregar:", error);
       } finally {
@@ -51,6 +65,17 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const taxes = fiscalPayload(fiscal);
+    if (
+      taxes.icmsRate == null || taxes.pisRate == null || taxes.cofinsRate == null
+      || (fiscal.icmsCst === "00" || fiscal.icmsCst === "20" ? taxes.icmsRate <= 0 : false)
+      || (fiscal.pisCst === "01" || fiscal.pisCst === "49" ? taxes.pisRate <= 0 : false)
+      || (fiscal.cofinsCst === "01" || fiscal.cofinsCst === "49" ? taxes.cofinsRate <= 0 : false)
+    ) {
+      toast.error("Informe as alíquotas dos impostos tributados, com até duas casas");
+      return;
+    }
+
     setSaving(true);
 
     try {
@@ -64,6 +89,9 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
           costPrice: Math.round(Number(formData.costPrice) * 100),
           stock: Number(formData.stock),
           unit: formData.unit,
+          supplierName: formData.supplierName,
+          supplierVisitDays: formData.supplierVisitDays ? Number(formData.supplierVisitDays) : null,
+          ...taxes,
         }),
       });
 
@@ -186,6 +214,42 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
                 )}
               </select>
             </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-[10px] font-black uppercase text-gray-400 mb-2 ml-1">Fornecedor</label>
+              <input
+                type="text"
+                className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-blue-500 focus:bg-white rounded-2xl outline-none transition-all font-bold"
+                value={formData.supplierName}
+                onChange={(event) => setFormData({ ...formData, supplierName: event.target.value })}
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] font-black uppercase text-gray-400 mb-2 ml-1">Frequência da visita</label>
+              <select
+                className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-blue-500 focus:bg-white rounded-2xl outline-none transition-all font-bold text-gray-700"
+                value={formData.supplierVisitDays}
+                onChange={(event) => setFormData({ ...formData, supplierVisitDays: event.target.value })}
+              >
+                <option value="">Não informada</option>
+                {SUPPLIER_VISITS.map((item) => (
+                  <option key={item.days} value={item.days}>
+                    {item.label}
+                  </option>
+                ))}
+                {formData.supplierVisitDays &&
+                  SUPPLIER_VISITS.every((item) => String(item.days) !== formData.supplierVisitDays) && (
+                    <option value={formData.supplierVisitDays}>A cada {formData.supplierVisitDays} dias</option>
+                  )}
+              </select>
+            </div>
+          </div>
+
+          <div className="border-t pt-6 space-y-4">
+            <h2 className="font-black text-gray-800 uppercase tracking-tighter">Dados fiscais</h2>
+            <FiscalFields value={fiscal} onChange={setFiscal} />
           </div>
 
           <button
