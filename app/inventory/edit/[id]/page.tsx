@@ -12,6 +12,7 @@ import {
   fiscalPayload,
   type FiscalDraft,
 } from "@/app/inventory/FiscalFields";
+import { SuggestedPrice } from "@/app/inventory/SuggestedPrice";
 
 export default function EditProductPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
@@ -179,6 +180,13 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
               />
             </div>
           </div>
+
+          <SuggestedPrice
+            name={formData.name}
+            costCents={Math.round(Number(formData.costPrice) * 100)}
+            currentCents={Math.round(Number(formData.price) * 100)}
+            onUse={(cents) => setFormData({ ...formData, price: cents / 100 })}
+          />
 
           <div className="grid grid-cols-2 gap-4">
             <div>

@@ -4,7 +4,9 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ArrowLeft, ArrowRight, CalendarClock, Wallet } from "lucide-react";
+import { MoneyInput } from "@/app/components/MoneyInput";
 import { money, showDate } from "@/app/finance/format";
+import { projectMonth, type MonthOutlook } from "@/modules/finance/projection";
 import type { FinanceSummary } from "@/modules/finance/types";
 
 function periodLength(from: string, to: string) {
@@ -39,6 +41,17 @@ export default function FinancePage() {
   const [summary, setSummary] = useState<FinanceSummary | null>(null);
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
+  const [goal, setGoal] = useState(0);
+
+  useEffect(() => {
+    const saved = window.localStorage.getItem("fluxus-reserve-goal");
+    if (saved) setGoal(Number(saved) || 0);
+  }, []);
+
+  function changeGoal(value: number) {
+    setGoal(value);
+    window.localStorage.setItem("fluxus-reserve-goal", String(value));
+  }
 
   const load = useCallback(async (start: string, end: string) => {
     const params = new URLSearchParams();
@@ -63,6 +76,7 @@ export default function FinancePage() {
   const movement = summary
     ? salesMovement(summary.salesTotal, summary.previousSalesTotal, summary.from, summary.to)
     : null;
+  const outlook = summary ? projectMonth(summary.monthOutlook, goal) : null;
   const tight = summary?.tightDay ?? null;
   const tightWhen = !tight || !summary
     ? ""
@@ -153,6 +167,46 @@ export default function FinancePage() {
                 tone={balance < 0 ? "negative" : "default"}
               />
             </section>
+
+            {outlook && (
+              <section
+                className={`rounded-2xl border-2 p-5 space-y-4 ${
+                  outlook.salesSoFar === 0
+                    ? "border-gray-200 bg-white"
+                    : outlook.onTrack
+                      ? "border-emerald-300 bg-emerald-50"
+                      : "border-red-300 bg-red-50"
+                }`}
+              >
+                <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+                  <div>
+                    <p className="text-[10px] font-black uppercase text-gray-500">Projeção do mês</p>
+                    <p className="text-sm text-gray-500">
+                      Dia {outlook.elapsedDays} de {outlook.daysInMonth}. O lucro já desconta o custo do produto vendido.
+                    </p>
+                  </div>
+                  <label className="text-[10px] font-black uppercase text-gray-500">
+                    Quero guardar
+                    <MoneyInput
+                      value={goal}
+                      onChange={changeGoal}
+                      className="mt-1 block w-40 rounded-xl border bg-white px-3 py-2 text-lg font-black text-gray-800"
+                    />
+                  </label>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <Stat label="Vendas até agora" value={money(outlook.salesSoFar)} hint={`Projeção ${money(outlook.projectedSales)}`} />
+                  <Stat label="Lucro projetado" value={money(outlook.projectedProfit)} hint="Preço menos o custo, no ritmo atual" />
+                  <Stat label="Contas do mês" value={money(outlook.bills)} hint="Pagas neste mês e as que vencem até o fim, inclusive atrasadas" />
+                </div>
+
+                <div>
+                  <p className="text-lg font-black text-gray-900">{outlookHeadline(outlook, goal)}</p>
+                  <p className="mt-1 text-sm text-gray-700">{outlookDetail(outlook, goal)}</p>
+                </div>
+              </section>
+            )}
 
             <section className="grid md:grid-cols-2 gap-4">
               <button
@@ -269,6 +323,40 @@ export default function FinancePage() {
       </main>
     </div>
   );
+}
+
+function outlookHeadline(outlook: MonthOutlook, goal: number) {
+  if (outlook.salesSoFar <= 0) return "Ainda não há venda neste mês para projetar o ritmo.";
+  if (outlook.onTrack && goal > 0) return "No ritmo atual, dá para honrar as contas e guardar a meta.";
+  if (outlook.onTrack) return "No ritmo atual, o lucro cobre as contas do mês.";
+  if (goal > 0) return `No ritmo atual, faltam ${money(outlook.gap)} para guardar ${money(goal)} depois das contas.`;
+  return `No ritmo atual, faltam ${money(outlook.gap)} para cobrir as contas.`;
+}
+
+function outlookDetail(outlook: MonthOutlook, goal: number) {
+  if (outlook.salesSoFar <= 0) {
+    const bills = outlook.bills > 0 ? `As contas até o fim do mês somam ${money(outlook.bills)}. ` : "";
+    const target = goal > 0 ? `A meta é guardar ${money(goal)}.` : "Defina quanto quer guardar no fim do mês.";
+    return `${bills}${target}`;
+  }
+
+  if (outlook.onTrack) {
+    const spare = outlook.left - goal;
+    return goal > 0
+      ? `O lucro projetado é ${money(outlook.projectedProfit)} e as contas somam ${money(outlook.bills)}. Sobra ${money(outlook.left)}, ${money(spare)} acima da meta.`
+      : `O lucro projetado é ${money(outlook.projectedProfit)}. Depois das contas, sobram ${money(outlook.left)}.`;
+  }
+
+  const margin = outlook.profitSoFar / outlook.salesSoFar;
+  if (margin <= 0) {
+    return `A margem das vendas está negativa, então vender mais nesse preço aumenta o buraco. Suba os preços para o valor sugerido no cadastro ou reduza ${money(outlook.gap)} nas contas.`;
+  }
+
+  const daily =
+    outlook.perDay != null && outlook.remainingDays > 0
+      ? ` Isso dá cerca de ${money(outlook.perDay)} por dia nos ${outlook.remainingDays} dias que faltam.`
+      : "";
+  return `Venda mais cerca de ${money(outlook.extraSales ?? 0)} até o fim do mês.${daily} Ou reduza ${money(outlook.gap)} nas contas a pagar.`;
 }
 
 function Stat({

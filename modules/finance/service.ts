@@ -5,6 +5,7 @@ import { AppError } from "@/modules/shared/errors";
 import { parse } from "@/modules/shared/validation";
 import { openAccountDates, receiveCustomerPayment } from "@/modules/customers/service";
 import { expenseCategoryLabel } from "./labels";
+import { monthWindow } from "./projection";
 import {
   createExpenseSchema,
   financePeriodSchema,
@@ -168,8 +169,12 @@ export async function getFinanceSummary(fromInput?: string | null, toInput?: str
   if (data.from > data.to) throw new AppError("A data inicial é maior que a final", 400);
 
   const { start, end } = periodBounds(data.from, data.to);
+  const month = monthWindow(today);
+  const monthPeriod = periodBounds(month.from, today);
+  const monthEndDate = new Date(`${month.to}T00:00:00.000Z`);
 
-  const [payments, receipts, walletPayments, paidInPeriod, pendingExpenses, debtors, supplies] = await Promise.all([
+  const [payments, receipts, walletPayments, paidInPeriod, pendingExpenses, debtors, supplies, monthSales, openBills, paidBills] =
+    await Promise.all([
     prisma.payment.findMany({
       where: {
         method: { not: PaymentMethod.WALLET },
@@ -216,6 +221,18 @@ export async function getFinanceSummary(fromInput?: string | null, toInput?: str
       where: { type: CashMovementType.SUPPLY, createdAt: { gte: start, lte: end } },
       _sum: { amount: true },
     }),
+    salesResult(monthPeriod.start, monthPeriod.end),
+    prisma.expense.aggregate({
+      where: { status: ExpenseStatus.PENDING, dueDate: { lte: monthEndDate } },
+      _sum: { amount: true },
+    }),
+    prisma.expense.aggregate({
+      where: {
+        status: ExpenseStatus.PAID,
+        paidAt: { gte: monthPeriod.start, lte: monthPeriod.end },
+      },
+      _sum: { amount: true },
+    }),
   ]);
 
   const inflowByMethod: Record<string, number> = {};
@@ -259,6 +276,13 @@ export async function getFinanceSummary(fromInput?: string | null, toInput?: str
     salesTotal: currentSales.salesTotal,
     previousSalesTotal: previousSales.salesTotal,
     profit: currentSales.profit,
+    monthOutlook: {
+      salesSoFar: monthSales.salesTotal,
+      profitSoFar: monthSales.profit,
+      bills: (openBills._sum.amount ?? 0) + (paidBills._sum.amount ?? 0),
+      elapsedDays: month.elapsedDays,
+      daysInMonth: month.daysInMonth,
+    },
   };
 }
 

@@ -64,4 +64,11 @@ export type FinanceSummary = {
   salesTotal: number;
   previousSalesTotal: number;
   profit: number;
+  monthOutlook: {
+    salesSoFar: number;
+    profitSoFar: number;
+    bills: number;
+    elapsedDays: number;
+    daysInMonth: number;
+  };
 };

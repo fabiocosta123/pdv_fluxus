@@ -17,6 +17,7 @@ import { MoneyInput } from "@/app/components/MoneyInput";
 import { SUPPLIER_VISITS } from "@/modules/catalog/supplier";
 import { PRODUCT_UNITS } from "@/modules/catalog/units";
 import { FiscalFields, emptyFiscalDraft, fiscalPayload } from "@/app/inventory/FiscalFields";
+import { SuggestedPrice } from "@/app/inventory/SuggestedPrice";
 
 export default function NewInventoryPage() {
   const router = useRouter();
@@ -254,6 +255,14 @@ export default function NewInventoryPage() {
                     onChange={setPrice}
                     className="text-4xl font-black text-emerald-600 bg-transparent border-b-4 border-emerald-100 focus:border-emerald-500 outline-none w-full pb-2 transition-all"
                   />
+                  <div className="mt-4">
+                    <SuggestedPrice
+                      name={productName}
+                      costCents={costPrice}
+                      currentCents={price}
+                      onUse={setPrice}
+                    />
+                  </div>
                 </div>
 
                 {/* INDICADOR DE MARGEM */}

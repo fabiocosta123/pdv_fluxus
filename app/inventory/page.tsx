@@ -17,6 +17,8 @@ import {
   
 } from "lucide-react";
 import { toast } from "sonner";
+import { money } from "@/app/finance/format";
+import { suggestProduct } from "@/modules/catalog/margin";
 
 export default function InventoryPage() {
   const router = useRouter();
@@ -172,6 +174,10 @@ export default function InventoryPage() {
                       Number(product.price),
                       Number(product.costPrice || 0)
                     );
+                    const suggestion = suggestProduct(
+                      product.name,
+                      Math.round(Number(product.costPrice || 0)),
+                    );
 
                     return (
                       <tr
@@ -223,6 +229,17 @@ export default function InventoryPage() {
                                 {margin.toFixed(0)}%
                               </span>
                             </div>
+                            {suggestion && (
+                              <span
+                                className={`mt-1 inline-flex w-fit rounded-lg px-2 py-1 text-[11px] font-black ${
+                                  Number(product.price) + 1 < suggestion.price
+                                    ? "bg-amber-100 text-amber-900"
+                                    : "bg-emerald-50 text-emerald-800"
+                                }`}
+                              >
+                                Sugerido {money(suggestion.price)} · {suggestion.label} {suggestion.margin}%
+                              </span>
+                            )}
                           </div>
                         </td>
                         <td className="px-6 py-4">
