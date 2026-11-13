@@ -49,6 +49,8 @@ export type FinanceSummary = {
   to: string;
   inflowByMethod: Record<string, number>;
   inflowTotal: number;
+  supplyTotal: number;
+  availableTotal: number;
   walletSold: number;
   expensePaid: number;
   receivablesTotal: number;

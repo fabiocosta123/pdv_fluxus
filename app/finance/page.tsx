@@ -59,7 +59,7 @@ export default function FinancePage() {
     void load("", "");
   }, [load]);
 
-  const balance = summary ? summary.inflowTotal - summary.expensePaid : 0;
+  const balance = summary ? summary.availableTotal - summary.expensePaid : 0;
   const movement = summary
     ? salesMovement(summary.salesTotal, summary.previousSalesTotal, summary.from, summary.to)
     : null;
@@ -134,13 +134,22 @@ export default function FinancePage() {
               </article>
             </section>
 
-            <section className="grid sm:grid-cols-3 gap-4">
+            <section className="grid sm:grid-cols-2 xl:grid-cols-4 gap-4">
               <Stat label="Entrou" value={money(summary.inflowTotal)} hint="Vendas à vista e recebimentos" />
+              <Stat
+                label="Disponível"
+                value={money(summary.availableTotal)}
+                hint={
+                  summary.supplyTotal > 0
+                    ? `Entrou mais ${money(summary.supplyTotal)} de aporte`
+                    : "Entrou mais os aportes do caixa"
+                }
+              />
               <Stat label="Saiu" value={money(summary.expensePaid)} hint="Despesas pagas no período" />
               <Stat
                 label="Sobrou"
                 value={money(balance)}
-                hint="Entrou menos o que saiu"
+                hint="Disponível menos o que saiu"
                 tone={balance < 0 ? "negative" : "default"}
               />
             </section>
@@ -239,7 +248,7 @@ export default function FinancePage() {
             )}
 
             <section className="bg-white rounded-2xl border p-4 flex flex-wrap gap-6">
-              {Object.entries(summary.inflowByMethod).length === 0 && (
+              {Object.entries(summary.inflowByMethod).length === 0 && summary.supplyTotal === 0 && (
                 <p className="text-sm text-gray-400">Sem entradas neste período.</p>
               )}
               {Object.entries(summary.inflowByMethod).map(([method, value]) => (
@@ -248,6 +257,12 @@ export default function FinancePage() {
                   <p className="font-black text-gray-800">{money(value)}</p>
                 </div>
               ))}
+              {summary.supplyTotal > 0 && (
+                <div>
+                  <p className="text-[10px] font-black uppercase text-gray-400">Aporte</p>
+                  <p className="font-black text-gray-800">{money(summary.supplyTotal)}</p>
+                </div>
+              )}
             </section>
           </>
         )}

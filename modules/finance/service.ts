@@ -1,4 +1,4 @@
-import { ExpenseStatus, PaymentMethod, Prisma } from "@prisma/client";
+import { CashMovementType, ExpenseStatus, PaymentMethod, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { mapPaymentMethod, paymentMethodLabel } from "@/modules/sales/payment-method";
 import { AppError } from "@/modules/shared/errors";
@@ -169,7 +169,7 @@ export async function getFinanceSummary(fromInput?: string | null, toInput?: str
 
   const { start, end } = periodBounds(data.from, data.to);
 
-  const [payments, receipts, walletPayments, paidInPeriod, pendingExpenses, debtors] = await Promise.all([
+  const [payments, receipts, walletPayments, paidInPeriod, pendingExpenses, debtors, supplies] = await Promise.all([
     prisma.payment.findMany({
       where: {
         method: { not: PaymentMethod.WALLET },
@@ -212,6 +212,10 @@ export async function getFinanceSummary(fromInput?: string | null, toInput?: str
       _sum: { currentDebt: true },
       _count: { _all: true },
     }),
+    prisma.cashMovement.aggregate({
+      where: { type: CashMovementType.SUPPLY, createdAt: { gte: start, lte: end } },
+      _sum: { amount: true },
+    }),
   ]);
 
   const inflowByMethod: Record<string, number> = {};
@@ -219,6 +223,9 @@ export async function getFinanceSummary(fromInput?: string | null, toInput?: str
   for (const receipt of receipts) {
     addAmount(inflowByMethod, receipt.method, receipt.amount + receipt.interest - receipt.discount);
   }
+
+  const inflowTotal = Object.values(inflowByMethod).reduce((sum, value) => sum + value, 0);
+  const supplyTotal = supplies._sum.amount ?? 0;
 
   const days = dueDays(pendingExpenses);
   const overdue = days.filter((day) => day.date < today);
@@ -236,7 +243,9 @@ export async function getFinanceSummary(fromInput?: string | null, toInput?: str
     from: data.from,
     to: data.to,
     inflowByMethod,
-    inflowTotal: Object.values(inflowByMethod).reduce((sum, value) => sum + value, 0),
+    inflowTotal,
+    supplyTotal,
+    availableTotal: inflowTotal + supplyTotal,
     walletSold: walletPayments.reduce((sum, payment) => sum + payment.value, 0),
     expensePaid: paidInPeriod._sum.amount ?? 0,
     receivablesTotal: debtors._sum.currentDebt ?? 0,
