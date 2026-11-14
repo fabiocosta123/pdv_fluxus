@@ -62,9 +62,9 @@ async function main() {
     await client.query('ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "priceGroup" TEXT');
     await client.query(
       `INSERT INTO "_prisma_migrations" ("id", "checksum", "finished_at", "migration_name", "logs", "rolled_back_at", "started_at", "applied_steps_count")
-       SELECT '7b1e9c44-2a60-4d8e-8f31-0c5a6d9e2b18', $1, NOW(), $2, NULL, NULL, NOW(), 1
+       SELECT '7b1e9c44-2a60-4d8e-8f31-0c5a6d9e2b18', $1::text, NOW(), $2::text, NULL, NULL, NOW(), 1
        WHERE NOT EXISTS (
-         SELECT 1 FROM "_prisma_migrations" WHERE "migration_name" = $2
+         SELECT 1 FROM "_prisma_migrations" WHERE "migration_name" = $2::text
        )`,
       [checksum, migrationName],
     );
