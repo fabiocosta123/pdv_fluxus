@@ -86,7 +86,7 @@ function sleep(ms) {
 }
 
 async function fingerprint(connectionString) {
-  const client = new Client({ connectionString, connectionTimeoutMillis: 20000 });
+  const client = new Client({ connectionString, connectionTimeoutMillis: 30000 });
   try {
     await client.connect();
     const result = await client.query(fingerprintSql);
@@ -94,6 +94,19 @@ async function fingerprint(connectionString) {
   } finally {
     await client.end().catch(() => {});
   }
+}
+
+async function fingerprintWithRetry(connectionString) {
+  let lastError = new Error("Não consegui ler o banco");
+  for (let attempt = 1; attempt <= 5; attempt += 1) {
+    try {
+      return await fingerprint(connectionString);
+    } catch (error) {
+      lastError = error instanceof Error ? error : lastError;
+      await sleep(4000 * attempt);
+    }
+  }
+  throw lastError;
 }
 
 async function neonRequest(path, options = {}) {
@@ -306,16 +319,23 @@ async function withPrismaConnection(databaseId, read) {
   });
   const connection = created.data || {};
   const connectionId = connection.id;
-  const url =
-    connection.endpoints?.direct?.connectionString ||
-    connection.endpoints?.pooled?.connectionString ||
-    connection.connectionString ||
-    "";
+  const urls = [
+    connection.endpoints?.pooled?.connectionString,
+    connection.endpoints?.direct?.connectionString,
+    connection.connectionString,
+  ].filter((url) => typeof url === "string" && (url.startsWith("postgres://") || url.startsWith("postgresql://")));
   try {
-    if (!url.startsWith("postgres://") && !url.startsWith("postgresql://")) {
-      throw new Error("A conexão de conferência não veio em formato Postgres");
+    if (urls.length === 0) throw new Error("A conexão de conferência não veio em formato Postgres");
+    await sleep(3000);
+    let lastError = new Error("Não consegui ler o banco");
+    for (const url of urls) {
+      try {
+        return await fingerprintWithRetry(url);
+      } catch (error) {
+        lastError = error instanceof Error ? error : lastError;
+      }
     }
-    return await read(url);
+    throw lastError;
   } finally {
     if (connectionId) {
       await prismaRequest(`/v1/connections/${connectionId}`, { method: "DELETE" }).catch(() => {});
