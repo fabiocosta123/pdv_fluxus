@@ -1,0 +1,48 @@
+name: Backup dos bancos
+
+on:
+  schedule:
+    # 12:00 e 20:00 no horário de Brasília (UTC-3)
+    - cron: "0 15,23 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: database-backup
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - run: npm ci
+
+      - uses: actions/cache/restore@v4
+        with:
+          path: .backup-state.json
+          key: database-backup-state-${{ github.run_id }}
+          restore-keys: database-backup-state-
+
+      - name: Atualizar as cópias se houve mudança
+        run: node scripts/database-backup.mjs
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_PROJECT_ID: icy-tooth-60717071
+          PRISMA_SERVICE_TOKEN: ${{ secrets.PRISMA_SERVICE_TOKEN }}
+          BACKUP_STATE_PATH: .backup-state.json
+
+      - uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: .backup-state.json
+          key: database-backup-state-${{ github.run_id }}
