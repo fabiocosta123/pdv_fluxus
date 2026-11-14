@@ -52,6 +52,14 @@ function sameFingerprint(left, right) {
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
+function copyKeepsTheData(live, copied) {
+  if (!live || !copied || isWipe(live, copied)) return false;
+  for (const key of ["products", "sales", "customers", "expenses", "movements"]) {
+    if (Number(copied[key] ?? 0) < Number(live[key] ?? 0)) return false;
+  }
+  return true;
+}
+
 function isWipe(previous, current) {
   if (!previous || !current) return false;
   for (const key of ["products", "sales", "customers", "expenses", "movements"]) {
@@ -435,7 +443,8 @@ async function backupPrisma(state) {
   try {
     await waitUntilReady(createdId);
     const copied = await withPrismaConnection(createdId, fingerprint);
-    if (!sameFingerprint(copied, liveFingerprint) || isWipe(previous, copied)) {
+    if (!copyKeepsTheData(liveFingerprint, copied)) {
+      log(`minimercadodaju: conferência rejeitada. Em uso: ${describe(liveFingerprint)}. Cópia: ${describe(copied)}`);
       throw new Error("A cópia nova não conferiu com o banco em uso");
     }
   } catch (error) {
