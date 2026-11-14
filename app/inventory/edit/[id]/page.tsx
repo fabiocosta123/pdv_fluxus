@@ -13,6 +13,7 @@ import {
   type FiscalDraft,
 } from "@/app/inventory/FiscalFields";
 import { SuggestedPrice } from "@/app/inventory/SuggestedPrice";
+import { classifyProduct, type PriceGroupId } from "@/modules/catalog/margin";
 
 export default function EditProductPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
@@ -31,6 +32,7 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
     unit: "un",
     supplierName: "",
     supplierVisitDays: "",
+    priceGroup: "outros" as PriceGroupId,
   });
 
   useEffect(() => {
@@ -53,6 +55,7 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
           unit: normalizeUnit(data.unit),
           supplierName: data.supplierName || "",
           supplierVisitDays: data.supplierVisitDays ? String(data.supplierVisitDays) : "",
+          priceGroup: data.priceGroup || classifyProduct(data.name || ""),
         });
         setFiscal(fiscalDraftFromProduct(data));
       } catch (error) {
@@ -92,6 +95,7 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
           unit: formData.unit,
           supplierName: formData.supplierName,
           supplierVisitDays: formData.supplierVisitDays ? Number(formData.supplierVisitDays) : null,
+          priceGroup: formData.priceGroup,
           ...taxes,
         }),
       });
@@ -185,6 +189,8 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
             name={formData.name}
             costCents={Math.round(Number(formData.costPrice) * 100)}
             currentCents={Math.round(Number(formData.price) * 100)}
+            groupId={formData.priceGroup}
+            onGroupChange={(priceGroup) => setFormData({ ...formData, priceGroup })}
             onUse={(cents) => setFormData({ ...formData, price: cents / 100 })}
           />
 

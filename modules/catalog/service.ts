@@ -80,6 +80,7 @@ export async function createProduct(input: unknown) {
       unit: data.unit?.toLowerCase() || "un",
       supplierName: data.supplierName ?? null,
       supplierVisitDays: data.supplierVisitDays ?? null,
+      priceGroup: data.priceGroup ?? null,
       ...fiscalData(data),
       isActive: true,
     },
@@ -101,6 +102,7 @@ export async function updateProduct(id: string, input: unknown) {
       unit: data.unit,
       supplierName: data.supplierName ?? null,
       supplierVisitDays: data.supplierVisitDays ?? null,
+      ...(data.priceGroup ? { priceGroup: data.priceGroup } : {}),
       ...fiscalData(data),
     },
   });

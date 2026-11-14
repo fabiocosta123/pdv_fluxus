@@ -1,5 +1,8 @@
 import { z } from "zod";
 import { ICMS_CSTS, PIS_COFINS_CSTS, icmsUsesRate, pisCofinsUsesRate } from "./fiscal";
+import { PRICE_GROUPS, type PriceGroupId } from "./margin";
+
+const priceGroupIds = PRICE_GROUPS.map((group) => group.id) as [PriceGroupId, ...PriceGroupId[]];
 
 const emptyToNull = (value: unknown) => {
   if (typeof value !== "string") return value;
@@ -76,6 +79,7 @@ export const createProductSchema = z
       (value) => (value === "" || value == null ? null : value),
       finiteNumber(z.number().int().min(1, "Frequência inválida").max(90, "Frequência inválida").nullable().optional()),
     ),
+    priceGroup: z.enum(priceGroupIds).optional(),
     ...fiscalFields,
   })
   .superRefine(refineFiscal);
@@ -97,6 +101,7 @@ export const updateProductSchema = z
       (value) => (value === "" || value == null ? null : value),
       finiteNumber(z.number().int().min(1, "Frequência inválida").max(90, "Frequência inválida").nullable().optional()),
     ),
+    priceGroup: z.enum(priceGroupIds).optional(),
     ...fiscalFields,
   })
   .superRefine(refineFiscal);

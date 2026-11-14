@@ -177,6 +177,7 @@ export default function InventoryPage() {
                     const suggestion = suggestProduct(
                       product.name,
                       Math.round(Number(product.costPrice || 0)),
+                      product.priceGroup || undefined,
                     );
 
                     return (

@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { money } from "@/app/finance/format";
 import { PRICE_GROUPS, classifyProduct, suggestProduct, type PriceGroupId } from "@/modules/catalog/margin";
 
@@ -8,22 +7,18 @@ export function SuggestedPrice({
   name,
   costCents,
   currentCents,
+  groupId,
+  onGroupChange,
   onUse,
 }: {
   name: string;
   costCents: number;
   currentCents: number;
+  groupId: PriceGroupId;
+  onGroupChange: (groupId: PriceGroupId) => void;
   onUse: (cents: number) => void;
 }) {
-  const detected = classifyProduct(name);
-  const [groupId, setGroupId] = useState<PriceGroupId>(detected);
-  const [locked, setLocked] = useState(false);
-
-  useEffect(() => {
-    if (!locked) setGroupId(detected);
-  }, [detected, locked]);
-
-  const suggestion = suggestProduct(name, costCents, groupId);
+  const suggestion = suggestProduct(name, costCents, groupId || classifyProduct(name));
   if (!suggestion) return null;
 
   const below = currentCents > 0 && currentCents + 1 < suggestion.price;
@@ -39,10 +34,7 @@ export function SuggestedPrice({
         <select
           className="mt-1 block w-full rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm font-bold text-gray-800"
           value={groupId}
-          onChange={(event) => {
-            setLocked(true);
-            setGroupId(event.target.value as PriceGroupId);
-          }}
+          onChange={(event) => onGroupChange(event.target.value as PriceGroupId)}
         >
           {PRICE_GROUPS.map((group) => (
             <option key={group.id} value={group.id}>

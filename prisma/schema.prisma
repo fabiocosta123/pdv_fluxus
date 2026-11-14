@@ -80,6 +80,7 @@ model Product {
   costPrice Decimal    @default(0) @db.Decimal(65, 30)
   supplierName      String?
   supplierVisitDays Int?
+  priceGroup        String?
   isActive  Boolean    @default(true)
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt

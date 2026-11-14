@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { 
   ArrowLeft, 
@@ -18,6 +18,7 @@ import { SUPPLIER_VISITS } from "@/modules/catalog/supplier";
 import { PRODUCT_UNITS } from "@/modules/catalog/units";
 import { FiscalFields, emptyFiscalDraft, fiscalPayload } from "@/app/inventory/FiscalFields";
 import { SuggestedPrice } from "@/app/inventory/SuggestedPrice";
+import { classifyProduct, type PriceGroupId } from "@/modules/catalog/margin";
 
 export default function NewInventoryPage() {
   const router = useRouter();
@@ -32,7 +33,13 @@ export default function NewInventoryPage() {
   const [unit, setUnit] = useState("un");
   const [supplierName, setSupplierName] = useState("");
   const [supplierVisitDays, setSupplierVisitDays] = useState("");
+  const [priceGroup, setPriceGroup] = useState<PriceGroupId>("outros");
+  const [groupLocked, setGroupLocked] = useState(false);
   const [fiscal, setFiscal] = useState(emptyFiscalDraft);
+
+  useEffect(() => {
+    if (!groupLocked) setPriceGroup(classifyProduct(productName));
+  }, [groupLocked, productName]);
 
   // Cálculo de Margem em tempo real
   const calculateMargin = () => {
@@ -72,6 +79,7 @@ export default function NewInventoryPage() {
           unit,
           supplierName,
           supplierVisitDays: supplierVisitDays ? Number(supplierVisitDays) : null,
+          priceGroup,
           ...taxes,
           isActive: true
         }),
@@ -260,6 +268,11 @@ export default function NewInventoryPage() {
                       name={productName}
                       costCents={costPrice}
                       currentCents={price}
+                      groupId={priceGroup}
+                      onGroupChange={(groupId) => {
+                        setGroupLocked(true);
+                        setPriceGroup(groupId);
+                      }}
                       onUse={setPrice}
                     />
                   </div>
