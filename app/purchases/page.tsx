@@ -125,8 +125,9 @@ export default function PurchasesPage() {
 
         <p className="text-xs text-gray-400">
           Entra na lista o produto com estoque de {list?.reorderPoint ?? 3} ou menos, e também o que acaba antes da
-          próxima visita. A quantidade sugerida deixa 3 no estoque quando o fornecedor voltar. Sem a frequência
-          cadastrada, a conta usa uma semana.
+          próxima visita. A quantidade sugerida deixa 3 no estoque quando o fornecedor voltar. Unidade, pacote e
+          caixa entram inteiros, arredondados para cima. Quilo e litro continuam com gramas e mililitros. Sem a
+          frequência cadastrada, a conta usa uma semana.
         </p>
       </main>
     </div>

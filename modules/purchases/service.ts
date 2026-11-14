@@ -1,6 +1,7 @@
 import { SaleStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { visitLabel } from "@/modules/catalog/supplier";
+import { normalizeUnit } from "@/modules/catalog/units";
 
 const LOOKBACK_DAYS = 28;
 const REORDER_POINT = 3;
@@ -20,8 +21,18 @@ function shiftDay(iso: string, days: number) {
   return `${nextYear}-${nextMonth}-${nextDay}`;
 }
 
+const DISCRETE_UNITS = new Set(["un", "pc", "cx"]);
+
 function roundUpQty(value: number) {
   return Math.ceil(Number((value * 1000).toFixed(6)) - 1e-9) / 1000;
+}
+
+function suggestQuantity(needed: number, unit: string) {
+  const amount = needed > 0 ? needed : 1;
+  if (DISCRETE_UNITS.has(normalizeUnit(unit))) {
+    return Math.max(1, Math.ceil(amount - 1e-9));
+  }
+  return roundUpQty(amount);
 }
 
 export type PurchaseSuggestion = {
@@ -88,7 +99,7 @@ export async function suggestPurchases() {
     if (stock > REORDER_POINT && projected > REORDER_POINT) continue;
 
     const needed = demand + REORDER_POINT - stock;
-    const quantity = needed > 0 ? roundUpQty(needed) : 1;
+    const quantity = suggestQuantity(needed, product.unit);
     const weekly = Math.round(daily * 7 * 1000) / 1000;
     suggestions.push({
       supplierName: product.supplierName?.trim() || "Sem fornecedor",
