@@ -1,5 +1,8 @@
+import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
-import { readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 const require = createRequire(new URL("../package.json", import.meta.url));
 const { Client } = require("pg");
@@ -104,17 +107,73 @@ async function fingerprint(connectionString) {
   }
 }
 
-async function fingerprintWithRetry(connectionString) {
+async function ping(connectionString) {
+  const client = new Client({ connectionString, connectionTimeoutMillis: 30000 });
+  try {
+    await client.connect();
+    await client.query("SELECT 1");
+  } finally {
+    await client.end().catch(() => {});
+  }
+}
+
+async function pingWithRetry(connectionString) {
   let lastError = new Error("Não consegui ler o banco");
   for (let attempt = 1; attempt <= 5; attempt += 1) {
     try {
-      return await fingerprint(connectionString);
+      await ping(connectionString);
+      return;
     } catch (error) {
       lastError = error instanceof Error ? error : lastError;
       await sleep(4000 * attempt);
     }
   }
   throw lastError;
+}
+
+function pgEnv(connectionString) {
+  const url = new URL(connectionString);
+  return {
+    PGHOST: url.hostname,
+    PGPORT: url.port || "5432",
+    PGUSER: decodeURIComponent(url.username),
+    PGPASSWORD: decodeURIComponent(url.password),
+    PGDATABASE: decodeURIComponent(url.pathname.replace(/^\//, "")),
+    PGSSLMODE: "require",
+  };
+}
+
+function runCommand(command, args, env) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      env: { ...process.env, ...env },
+      stdio: ["ignore", "ignore", "pipe"],
+    });
+    let stderr = "";
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk.toString();
+    });
+    child.on("error", (error) => reject(error));
+    child.on("close", (code) => {
+      if (code === 0) resolve();
+      else reject(new Error(redact(stderr).slice(0, 500) || `${command} falhou`));
+    });
+  });
+}
+
+async function copyDatabase(liveUrl, copyUrl) {
+  const directory = await mkdtemp(join(tmpdir(), "fluxus-backup-"));
+  const file = join(directory, "backup.sql");
+  try {
+    await runCommand(
+      "pg_dump",
+      ["--file", file, "--format=plain", "--no-owner", "--no-acl"],
+      pgEnv(liveUrl),
+    );
+    await runCommand("psql", ["--file", file, "--set", "ON_ERROR_STOP=1"], pgEnv(copyUrl));
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 }
 
 async function neonRequest(path, options = {}) {
@@ -328,22 +387,26 @@ async function withPrismaConnection(databaseId, read) {
   const connection = created.data || {};
   const connectionId = connection.id;
   const urls = [
-    connection.endpoints?.pooled?.connectionString,
     connection.endpoints?.direct?.connectionString,
+    connection.endpoints?.pooled?.connectionString,
     connection.connectionString,
   ].filter((url) => typeof url === "string" && (url.startsWith("postgres://") || url.startsWith("postgresql://")));
   try {
     if (urls.length === 0) throw new Error("A conexão de conferência não veio em formato Postgres");
     await sleep(3000);
+    let chosen = "";
     let lastError = new Error("Não consegui ler o banco");
     for (const url of urls) {
       try {
-        return await fingerprintWithRetry(url);
+        await pingWithRetry(url);
+        chosen = url;
+        break;
       } catch (error) {
         lastError = error instanceof Error ? error : lastError;
       }
     }
-    throw lastError;
+    if (!chosen) throw lastError;
+    return await read(chosen);
   } finally {
     if (connectionId) {
       await prismaRequest(`/v1/connections/${connectionId}`, { method: "DELETE" }).catch(() => {});
@@ -434,7 +497,7 @@ async function backupPrisma(state) {
       region: "us-east-1",
       name: `backup-minimercadodaju-${stamp}`,
       isDefault: false,
-      source: { type: "database", databaseId: live.id },
+      source: { type: "empty" },
       branchGitName,
     },
   });
@@ -442,6 +505,11 @@ async function backupPrisma(state) {
   if (!createdId || createdId === live.id) throw new Error("A cópia nova veio sem identificação");
   try {
     await waitUntilReady(createdId);
+    await withPrismaConnection(live.id, async (liveUrl) => {
+      await withPrismaConnection(createdId, async (copyUrl) => {
+        await copyDatabase(liveUrl, copyUrl);
+      });
+    });
     const copied = await withPrismaConnection(createdId, fingerprint);
     if (!copyKeepsTheData(liveFingerprint, copied)) {
       log(`minimercadodaju: conferência rejeitada. Em uso: ${describe(liveFingerprint)}. Cópia: ${describe(copied)}`);
