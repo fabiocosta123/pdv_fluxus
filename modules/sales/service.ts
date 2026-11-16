@@ -10,6 +10,35 @@ function lineSubtotal(priceCents: number, quantity: number) {
   return Math.round(priceCents * quantity);
 }
 
+function settlePayments(
+  payments: { method: PaymentMethod; value: number }[],
+  total: number,
+) {
+  const rounded = payments
+    .map((payment) => ({ ...payment, value: Math.round(payment.value) }))
+    .filter((payment) => payment.value > 0);
+
+  let walletTotal = rounded
+    .filter((payment) => payment.method === "WALLET")
+    .reduce((sum, payment) => sum + payment.value, 0);
+
+  if (walletTotal > total) {
+    let excess = walletTotal - total;
+    for (let index = rounded.length - 1; index >= 0 && excess > 0; index -= 1) {
+      const payment = rounded[index];
+      if (payment.method !== "WALLET") continue;
+      const cut = Math.min(payment.value, excess);
+      payment.value -= cut;
+      excess -= cut;
+    }
+    walletTotal = total;
+  }
+
+  const settled = rounded.filter((payment) => payment.value > 0);
+  const totalPaid = settled.reduce((sum, payment) => sum + payment.value, 0);
+  return { payments: settled, totalPaid, walletTotal, change: totalPaid - total };
+}
+
 export async function createSale(input: unknown) {
   const data = parse(createSaleSchema, input);
 
@@ -17,8 +46,6 @@ export async function createSale(input: unknown) {
   for (const item of data.cart) {
     quantities.set(item.id, (quantities.get(item.id) ?? 0) + item.quantity);
   }
-
-  const totalPaid = data.payments.reduce((sum, payment) => sum + payment.value, 0);
 
   return prisma.$transaction(async (tx) => {
     const lines: {
@@ -63,19 +90,20 @@ export async function createSale(input: unknown) {
     }
 
     const total = lines.reduce((sum, line) => sum + line.subtotal, 0);
-    if (totalPaid < total) {
+    const settled = settlePayments(
+      data.payments.map((payment) => ({
+        method: mapPaymentMethod(payment.method),
+        value: payment.value,
+      })),
+      total,
+    );
+    if (settled.totalPaid < total) {
       throw new AppError("Pagamento insuficiente", 400);
     }
 
-    const payments = data.payments.map((payment) => ({
-      method: mapPaymentMethod(payment.method),
-      value: payment.value,
-    }));
-    const walletTotal = payments
-      .filter((payment) => payment.method === "WALLET")
-      .reduce((sum, payment) => sum + payment.value, 0);
-    const change = totalPaid - total;
-    if (change > totalPaid - walletTotal) {
+    const { payments, walletTotal, change } = settled;
+    const totalPaidSettled = settled.totalPaid;
+    if (change > totalPaidSettled - walletTotal) {
       throw new AppError("Carteira não gera troco", 400);
     }
     if (walletTotal > 0 && !data.customerId) {
@@ -101,7 +129,7 @@ export async function createSale(input: unknown) {
     const sale = await tx.sale.create({
       data: {
         total,
-        totalPaid,
+        totalPaid: totalPaidSettled,
         change,
         status: SaleStatus.COMPLETED,
         customerId: data.customerId ?? null,

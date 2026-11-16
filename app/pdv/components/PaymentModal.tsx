@@ -96,7 +96,7 @@ export const PaymentModal = ({
       return;
     }
     if (paymentInputValue > remaingBalance) {
-      toast.info("Carteira não gera troco. Lancei só o saldo da venda.");
+      toast.info("Carteira lançada no saldo da venda.");
     }
     handleAddPayment("CARTEIRA", amount);
   }

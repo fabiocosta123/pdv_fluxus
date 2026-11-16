@@ -339,7 +339,7 @@ export default function PDVPage() {
       if (stock <= 0) return prev.filter((item) => item.id !== id);
       return prev.map((item) =>
         item.id === id
-          ? { ...item, quantity: stock, subtotal: stock * item.price, stock }
+          ? { ...item, quantity: stock, subtotal: Math.round(stock * item.price), stock }
           : item,
       );
     });
@@ -616,7 +616,7 @@ export default function PDVPage() {
             ? {
               ...item,
               quantity: newQuantity,
-              subtotal: newQuantity * item.price,
+              subtotal: Math.round(newQuantity * item.price),
               stock: Number.isFinite(stock) ? stock : item.stock,
             }
             : item,
@@ -629,7 +629,7 @@ export default function PDVPage() {
           ...product,
           stock: Number.isFinite(stock) ? stock : product.stock,
           quantity: qty,
-          subtotal: qty * product.price,
+          subtotal: Math.round(qty * product.price),
         },
       ];
     });
