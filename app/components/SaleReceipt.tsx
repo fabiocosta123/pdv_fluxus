@@ -36,6 +36,11 @@ export const SaleReceipt = ({ lastSale, store = STORE_DEFAULTS, printWidth = "80
   if (!lastSale) return null;
 
   const narrow = printWidth === "58mm";
+  const walletDebt = lastSale.payments.reduce((sum: number, payment: { method?: string; value?: number }) => {
+    const method = String(payment.method ?? "").toUpperCase();
+    if (method !== "CARTEIRA" && method !== "WALLET") return sum;
+    return sum + Number(payment.value ?? 0);
+  }, 0);
 
   return (
     <>
@@ -113,6 +118,14 @@ export const SaleReceipt = ({ lastSale, store = STORE_DEFAULTS, printWidth = "80
           </div>
         )}
       </div>
+
+      {walletDebt > 0 && (
+        <div className="mt-3 border-t border-dashed border-black pt-2 text-center text-[10px] uppercase">
+          <p>Reconheço a dívida de {(walletDebt / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} desta compra e me comprometo a pagá-la.</p>
+          <p className="mt-4">Assinatura</p>
+          <p className="mt-3">______________________________</p>
+        </div>
+      )}
 
       <div className="mt-4 text-center text-[10px] border-t border-dashed border-black pt-2 uppercase">
         {store.footer && <p>{store.footer}</p>}

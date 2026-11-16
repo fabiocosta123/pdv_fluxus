@@ -141,17 +141,6 @@ export const PaymentModal = ({
     setPix(data);
   }
 
-  async function simulatePix() {
-    if (!pix) return;
-    const response = await fetch(`/api/pix/${pix.id}/simulate`, { method: "POST" });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      toast.error(data.error || "Não foi possível simular o pagamento");
-      return;
-    }
-    settlePix(pix.id, pix.amount);
-  }
-
   useEffect(() => {
     if (!pix) return;
     let active = true;
@@ -208,6 +197,16 @@ export const PaymentModal = ({
     (value / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
   return (
+    <>
+    {pix && (
+      <div className="fixed inset-0 z-[300] flex items-center justify-center bg-white">
+        <img
+          src={pix.qrCode}
+          alt="QR Code PIX"
+          className="h-[min(92vw,92vh)] w-[min(92vw,92vh)] object-contain"
+        />
+      </div>
+    )}
     <div className="fixed inset-0 bg-blue-900/80 backdrop-blur-sm flex items-center justify-center z-[100] p-4 no-print text-gray-800">
       <div className="bg-white rounded-2xl w-full max-w-2xl flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
         
@@ -370,42 +369,6 @@ export const PaymentModal = ({
           </div>
         </div>
 
-        {pix && (
-          <div className="mx-5 mb-4 p-4 border-2 border-blue-200 rounded-2xl bg-blue-50 text-center space-y-3">
-            <div>
-              <p className="text-[10px] font-black uppercase text-blue-600">Aguardando PIX</p>
-              <p className="text-2xl font-black text-blue-900">{formatCurrency(pix.amount)}</p>
-              {pix.expiresAt && (
-                <p className="text-xs text-gray-500">
-                  Válido até {new Date(pix.expiresAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
-                </p>
-              )}
-            </div>
-            <img src={pix.qrCode} alt="QR Code PIX" className="mx-auto w-56 h-56 bg-white p-2 rounded-xl" />
-            <p className="text-[10px] text-gray-500 break-all">{pix.payload}</p>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  void navigator.clipboard.writeText(pix.payload);
-                  toast.success("Código PIX copiado");
-                }}
-                className="flex-1 py-2 rounded-xl bg-white border font-bold text-sm"
-              >
-                Copiar código
-              </button>
-              {pix.sandbox && (
-                <button type="button" onClick={() => void simulatePix()} className="flex-1 py-2 rounded-xl bg-blue-600 text-white font-bold text-sm">
-                  Simular pagamento
-                </button>
-              )}
-              <button type="button" onClick={() => setPix(null)} className="flex-1 py-2 rounded-xl bg-gray-100 font-bold text-sm">
-                Cancelar
-              </button>
-            </div>
-          </div>
-        )}
-
         {/* Bloco de Troco Dinâmico */}
         {change > 0 && (
           <div className="mx-5 mb-5 p-4 bg-green-50 border-2 border-green-500 rounded-2xl flex justify-between items-center animate-bounce shadow-lg">
@@ -437,5 +400,6 @@ export const PaymentModal = ({
         </div>
       </div>
     </div>
+    </>
   );
 };

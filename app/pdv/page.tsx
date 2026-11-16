@@ -186,43 +186,26 @@ export default function PDVPage() {
     setSearchResults(filtered);
   };
 
-  const handleAddPayment = useCallback(
-    (method: string, amount: number) => {
-      if (amount <= 0) return;
+  const finishingSale = useRef(false);
 
-      setPayments((prev) => {
-        const newPayments = [...prev, { method, value: amount }];
+  // Finaliza venda e manda o cupom para a impressora
+  const finalizarVenda = useCallback(async (nextPayments?: { method: string; value: number }[]) => {
+    const salePayments = nextPayments ?? payments;
+    const paid = salePayments.reduce((acc, payment) => acc + payment.value, 0);
+    if (paid < total || finishingSale.current) return;
+    finishingSale.current = true;
 
-        toast.info(
-          `${method}: ${(amount / 100).toLocaleString("pt-BR", {
-            style: "currency",
-            currency: "BRL",
-          })} registrado!`,
-        );
-
-        return newPayments;
-      });
-
-      // Limpa o valor digitado para facilitar a próxima entrada
-      setPaymentInputValue(0);
-    },
-    [total],
-  );
-
-  // Finaliza venda
-  const finalizarVenda = useCallback(async () => {
-    if (remaingBalance > 0) return;
-
+    const saleChange = Math.max(0, paid - total);
     const toastId = "venda-processando";
     toast.loading("Processando venda...", { id: toastId });
 
     const saleDate = new Date().toISOString();
     const saleData = {
       cart,
-      payments,
+      payments: salePayments,
       total,
-      totalPaid,
-      change,
+      totalPaid: paid,
+      change: saleChange,
       customerId: customer?.id ?? null,
       customer: customer
         ? { name: customer.name, document: customer.document }
@@ -258,7 +241,10 @@ export default function PDVPage() {
       toast.warning("Venda salva no notebook (Offline)!", { id: toastId });
       completed = true;
     } finally {
-      if (!completed) return;
+      if (!completed) {
+        finishingSale.current = false;
+        return;
+      }
       // delay para o React renderizar o conteúdo do cupom escondido
       setTimeout(() => {
         window.print();
@@ -268,13 +254,34 @@ export default function PDVPage() {
         setIsPaymentModalOpen(false);
         setCustomer(null);
         setBarcode("");
+        finishingSale.current = false;
 
         setTimeout(() => {
           setLastSale(null); // faz o componente Receipt retornar null e sumir do HTML
         }, 2000);
       }, 300);
     }
-  }, [cart, payments, total, totalPaid, change, remaingBalance, customer]);
+  }, [cart, payments, total, customer]);
+
+  const handleAddPayment = useCallback(
+    (method: string, amount: number) => {
+      if (amount <= 0 || finishingSale.current) return;
+
+      const nextPayments = [...payments, { method, value: amount }];
+      setPayments(nextPayments);
+      setPaymentInputValue(0);
+      toast.info(
+        `${method}: ${(amount / 100).toLocaleString("pt-BR", {
+          style: "currency",
+          currency: "BRL",
+        })} registrado!`,
+      );
+
+      const paid = nextPayments.reduce((acc, payment) => acc + payment.value, 0);
+      if (paid >= total) void finalizarVenda(nextPayments);
+    },
+    [payments, total, finalizarVenda],
+  );
 
   // remove ultimo item
   const removeLastItem = useCallback(() => {

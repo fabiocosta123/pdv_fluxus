@@ -117,7 +117,7 @@ export async function createPixCharge(input: unknown) {
     failure(body, "Não foi possível gerar o PIX", response.status || 502);
   }
 
-  const qrCode = await QRCode.toDataURL(copyPaste, { width: 280, margin: 1 });
+  const qrCode = await QRCode.toDataURL(copyPaste, { width: 720, margin: 2 });
   return {
     id,
     payload: copyPaste,
