@@ -13,8 +13,8 @@ import {
   Power,
   PowerOff,
   Package,
+  Printer,
   TrendingUp,
-  
 } from "lucide-react";
 import { toast } from "sonner";
 import { money } from "@/app/finance/format";
@@ -99,12 +99,20 @@ export default function InventoryPage() {
           </div>
         </div>
 
-        <Link
-          href="/inventory/new"
-          className="bg-blue-600 text-white px-5 py-3 rounded-xl text-xs font-black shadow-lg shadow-blue-100 hover:bg-blue-700 active:scale-95 transition-all flex items-center gap-2 uppercase tracking-tighter"
-        >
-          <Plus size={18} /> Novo Produto
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/inventory/labels"
+            className="bg-white text-gray-700 border border-gray-200 px-5 py-3 rounded-xl text-xs font-black hover:bg-gray-50 active:scale-95 transition-all flex items-center gap-2 uppercase tracking-tighter"
+          >
+            <Printer size={18} /> Etiquetas
+          </Link>
+          <Link
+            href="/inventory/new"
+            className="bg-blue-600 text-white px-5 py-3 rounded-xl text-xs font-black shadow-lg shadow-blue-100 hover:bg-blue-700 active:scale-95 transition-all flex items-center gap-2 uppercase tracking-tighter"
+          >
+            <Plus size={18} /> Novo Produto
+          </Link>
+        </div>
       </header>
 
       <main className="p-4 lg:p-8 max-w-7xl mx-auto w-full overflow-hidden">
@@ -263,6 +271,13 @@ export default function InventoryPage() {
                         </td>
                         <td className="px-6 py-4 text-right">
                           <div className="flex justify-end gap-2">
+                            <Link
+                              href={`/inventory/labels?product=${product.id}`}
+                              className="p-2.5 bg-amber-50 text-amber-700 rounded-xl hover:bg-amber-500 hover:text-white transition-all shadow-sm border border-amber-100 flex items-center justify-center"
+                              title="Imprimir etiqueta"
+                            >
+                              <Printer size={18} />
+                            </Link>
                             <Link
                               href={`/inventory/edit/${product.id}`}
                               className="p-2.5 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-600 hover:text-white transition-all shadow-sm border border-blue-100 flex items-center justify-center"

@@ -165,3 +165,161 @@ body {
     margin: 0;
   }
 }
+
+.argox-tag {
+  --w: 80mm;
+  --h: 40mm;
+  --name: 3.2mm;
+  --price: 16mm;
+  --bars: 11mm;
+  width: var(--w);
+  height: var(--h);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 0.4mm;
+  padding: 1.6mm 2.2mm 1mm;
+  background: white;
+  color: black;
+  overflow: hidden;
+  border: 1px solid #d1d5db;
+}
+
+.argox-50x30 {
+  --w: 50mm;
+  --h: 30mm;
+  --name: 2.2mm;
+  --price: 9.5mm;
+  --bars: 7.5mm;
+  page: argox-50x30;
+}
+
+.argox-80x40 {
+  --w: 80mm;
+  --h: 40mm;
+  --name: 3.2mm;
+  --price: 16mm;
+  --bars: 11mm;
+  page: argox-80x40;
+}
+
+.argox-100x30 {
+  --w: 100mm;
+  --h: 30mm;
+  --name: 2.6mm;
+  --price: 10mm;
+  --bars: 7.5mm;
+  page: argox-100x30;
+}
+
+.argox-name {
+  margin: 0;
+  flex-shrink: 0;
+  font-size: var(--name);
+  font-weight: 800;
+  line-height: 1.05;
+  text-transform: uppercase;
+  max-height: calc(var(--name) * 2.15);
+  overflow: hidden;
+}
+
+.argox-unit {
+  font-weight: 700;
+  font-size: 0.85em;
+}
+
+.argox-price {
+  margin: 0;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  font-weight: 900;
+  line-height: 0.8;
+  letter-spacing: -0.04em;
+}
+
+.argox-currency {
+  font-size: calc(var(--price) * 0.34);
+  margin-top: 0.6mm;
+  margin-right: 0.8mm;
+}
+
+.argox-major {
+  font-size: var(--price);
+}
+
+.argox-minor {
+  font-size: calc(var(--price) * 0.42);
+  margin-top: 0.4mm;
+}
+
+.argox-code {
+  display: flex;
+  flex-shrink: 0;
+  flex-direction: column;
+  align-items: center;
+  height: var(--bars);
+  min-height: var(--bars);
+}
+
+.argox-code svg {
+  width: 100%;
+  height: calc(var(--bars) - 2.4mm);
+  display: block;
+}
+
+.argox-digits,
+.argox-missing {
+  font-family: ui-monospace, monospace;
+  font-size: 2mm;
+  line-height: 1;
+  letter-spacing: 0.04em;
+}
+
+.argox-missing {
+  margin: auto;
+  font-size: 2.2mm;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+@page argox-50x30 {
+  size: 50mm 30mm;
+  margin: 0;
+}
+
+@page argox-80x40 {
+  size: 80mm 40mm;
+  margin: 0;
+}
+
+@page argox-100x30 {
+  size: 100mm 30mm;
+  margin: 0;
+}
+
+@media print {
+  .argox-sheet.print-area {
+    position: static !important;
+    left: auto !important;
+    top: auto !important;
+    width: auto !important;
+    margin: 0 !important;
+  }
+
+  .argox-tag {
+    border: 0 !important;
+    break-after: page;
+    page-break-after: always;
+    break-inside: avoid;
+  }
+
+  .argox-tag:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+}

@@ -6,6 +6,7 @@ import {
   ClipboardList,
   DollarSign,
   Package,
+  Printer,
   Settings,
   Shield,
   Users,
@@ -20,6 +21,13 @@ const items = [
     icon: <Package className="w-8 h-8" />,
     color: "bg-orange-500",
     path: "/inventory",
+  },
+  {
+    title: "Etiquetas",
+    description: "Preço de gôndola na Argox",
+    icon: <Printer className="w-8 h-8" />,
+    color: "bg-amber-500",
+    path: "/inventory/labels",
   },
   {
     title: "Compras",
