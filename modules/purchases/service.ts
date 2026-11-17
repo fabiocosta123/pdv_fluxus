@@ -4,7 +4,7 @@ import { visitLabel } from "@/modules/catalog/supplier";
 import { normalizeUnit } from "@/modules/catalog/units";
 
 const LOOKBACK_DAYS = 28;
-const REORDER_POINT = 3;
+const REORDER_POINT = 1;
 const DEFAULT_VISIT_DAYS = 7;
 const STORE_TIMEZONE = "America/Sao_Paulo";
 
@@ -116,7 +116,7 @@ export async function suggestPurchases() {
       cost: Math.round(Number(product.costPrice) * quantity),
       reason:
         stock <= REORDER_POINT
-          ? "Estoque em 3 ou menos."
+          ? "Estoque em 1 ou menos."
           : "O que tem acaba antes da próxima visita.",
     });
   }
