@@ -24,7 +24,7 @@ const items = [
   },
   {
     title: "Etiquetas",
-    description: "Preço de gôndola na Argox",
+    description: "Preço em sulfite A4 ou na Argox",
     icon: <Printer className="w-8 h-8" />,
     color: "bg-amber-500",
     path: "/inventory/labels",

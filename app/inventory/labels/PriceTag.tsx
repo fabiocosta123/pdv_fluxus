@@ -14,12 +14,14 @@ export function PriceTag({
   barCode,
   unit,
   size,
+  layout = "argox",
 }: {
   name: string;
   price: number;
   barCode: string | null;
   unit?: string | null;
   size: LabelSizeId;
+  layout?: "argox" | "a4";
 }) {
   const mark = barcodeFor(barCode);
   const reais = Math.trunc(price / 100).toLocaleString("pt-BR");
@@ -28,7 +30,7 @@ export function PriceTag({
   const showUnit = measure && !/^(un|und|unidade|pc)$/i.test(measure);
 
   return (
-    <article className={`argox-tag argox-${size}`}>
+    <article className={layout === "a4" ? "a4-tag" : `argox-tag argox-${size}`}>
       <p className="argox-name">
         {name}
         {showUnit ? <span className="argox-unit"> {measure}</span> : null}

@@ -323,3 +323,79 @@ body {
     page-break-after: auto;
   }
 }
+
+.a4-tag {
+  --name: 3.2mm;
+  --price: 14mm;
+  --bars: 12mm;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 0.4mm;
+  padding: 1.8mm 2.4mm 1.2mm;
+  background: white;
+  color: black;
+  overflow: hidden;
+  border: 0.25mm dashed #111;
+}
+
+.a4-sheet {
+  page: a4-labels;
+}
+
+.a4-page {
+  width: 210mm;
+  height: 296mm;
+  box-sizing: border-box;
+  padding: 8mm;
+  display: grid;
+  grid-template-columns: 97mm 97mm;
+  grid-auto-rows: 46mm;
+  align-content: start;
+  justify-content: center;
+  background: white;
+  page: a4-labels;
+}
+
+@page a4-labels {
+  size: A4 portrait;
+  margin: 0;
+}
+
+@media screen {
+  .a4-preview {
+    width: 100%;
+    height: 400px;
+    overflow: hidden;
+    background: #f3f4f6;
+    border-radius: 16px;
+  }
+
+  .a4-preview .a4-page {
+    transform: scale(0.34);
+    transform-origin: top left;
+  }
+}
+
+@media print {
+  .a4-sheet.print-area {
+    position: static !important;
+    left: auto !important;
+    top: auto !important;
+    width: auto !important;
+    margin: 0 !important;
+  }
+
+  .a4-page {
+    break-after: page;
+    page-break-after: always;
+  }
+
+  .a4-page:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+}
