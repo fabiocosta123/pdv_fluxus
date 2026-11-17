@@ -121,7 +121,7 @@ export default function FinancePage() {
             <section className="grid md:grid-cols-2 gap-4">
               <article className="bg-white rounded-2xl border p-5">
                 <p className="text-[10px] font-black uppercase text-gray-400">Vendas</p>
-                <p className="text-2xl font-black text-gray-800">{money(summary.salesTotal)}</p>
+                <p className="text-2xl font-black text-blue-600">{money(summary.salesTotal)}</p>
                 <p
                   className={`text-sm mt-1 ${
                     movement?.tone === "up"
@@ -136,10 +136,10 @@ export default function FinancePage() {
               </article>
               <article className="bg-white rounded-2xl border p-5">
                 <p className="text-[10px] font-black uppercase text-gray-400">Lucro</p>
-                <p className={`text-2xl font-black ${summary.profit < 0 ? "text-red-600" : "text-gray-800"}`}>
+                <p className="text-2xl font-black text-emerald-600">
                   {money(summary.profit)}
                 </p>
-                <p className="text-sm text-gray-500 mt-1">
+                <p className="text-sm text-emerald-700 mt-1">
                   {summary.salesTotal > 0
                     ? `${((summary.profit / summary.salesTotal) * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}% sobre as vendas`
                     : "Sem vendas neste período."}
@@ -149,7 +149,7 @@ export default function FinancePage() {
             </section>
 
             <section className="grid sm:grid-cols-2 xl:grid-cols-4 gap-4">
-              <Stat label="Entrou" value={money(summary.inflowTotal)} hint="Vendas à vista e recebimentos" />
+              <Stat label="Entrou" value={money(summary.inflowTotal)} hint="Vendas à vista e recebimentos" valueClass="text-blue-600" />
               <Stat
                 label="Disponível"
                 value={money(summary.availableTotal)}
@@ -158,29 +158,24 @@ export default function FinancePage() {
                     ? `Entrou mais ${money(summary.supplyTotal)} de aporte`
                     : "Entrou mais os aportes do caixa"
                 }
+                valueClass="text-blue-600"
               />
-              <Stat label="Saiu" value={money(summary.expensePaid)} hint="Despesas pagas no período" />
+              <Stat label="Saiu" value={money(summary.expensePaid)} hint="Despesas pagas no período" valueClass="text-red-600" />
               <Stat
                 label="Sobrou"
                 value={money(balance)}
                 hint="Disponível menos o que saiu"
-                tone={balance < 0 ? "negative" : "default"}
+                valueClass="text-blue-600"
               />
             </section>
 
             {outlook && (
               <section
-                className={`rounded-2xl border-2 p-5 space-y-4 ${
-                  outlook.salesSoFar === 0
-                    ? "border-gray-200 bg-white"
-                    : outlook.onTrack
-                      ? "border-emerald-300 bg-emerald-50"
-                      : "border-red-300 bg-red-50"
-                }`}
+                className="rounded-2xl border-2 border-amber-200 bg-amber-50 p-5 space-y-4"
               >
                 <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
                   <div>
-                    <p className="text-[10px] font-black uppercase text-gray-500">Projeção do mês</p>
+                    <p className="text-[10px] font-black uppercase text-amber-700">Projeção do mês</p>
                     <p className="text-sm text-gray-500">
                       Dia {outlook.elapsedDays} de {outlook.daysInMonth}. O lucro já desconta o custo do produto vendido.
                     </p>
@@ -196,9 +191,9 @@ export default function FinancePage() {
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-3">
-                  <Stat label="Vendas até agora" value={money(outlook.salesSoFar)} hint={`Projeção ${money(outlook.projectedSales)}`} />
-                  <Stat label="Lucro projetado" value={money(outlook.projectedProfit)} hint="Preço menos o custo, no ritmo atual" />
-                  <Stat label="Contas do mês" value={money(outlook.bills)} hint="Pagas neste mês e as que vencem até o fim, inclusive atrasadas" />
+                  <Stat label="Vendas até agora" value={money(outlook.salesSoFar)} hint={`Projeção ${money(outlook.projectedSales)}`} valueClass="text-blue-600" />
+                  <Stat label="Lucro projetado" value={money(outlook.projectedProfit)} hint="Preço menos o custo, no ritmo atual" valueClass="text-emerald-600" />
+                  <Stat label="Contas do mês" value={money(outlook.bills)} hint="Pagas neste mês e as que vencem até o fim, inclusive atrasadas" valueClass="text-red-600" />
                 </div>
 
                 <div>
@@ -211,16 +206,16 @@ export default function FinancePage() {
             <section className="grid md:grid-cols-2 gap-4">
               <button
                 onClick={() => router.push("/finance/payables")}
-                className="bg-white rounded-2xl border p-5 text-left hover:border-emerald-500 hover:shadow-lg transition-all"
+                className="bg-amber-50 rounded-2xl border border-amber-200 p-5 text-left hover:border-amber-400 hover:shadow-lg transition-all"
               >
                 <div className="flex items-start justify-between gap-3">
-                  <div className="bg-emerald-600 text-white w-12 h-12 rounded-2xl flex items-center justify-center">
+                  <div className="bg-amber-500 text-white w-12 h-12 rounded-2xl flex items-center justify-center">
                     <CalendarClock className="w-6 h-6" />
                   </div>
                   <ArrowRight className="w-5 h-5 text-gray-300" />
                 </div>
-                <p className="mt-4 text-[10px] font-black uppercase text-gray-400">Contas a pagar</p>
-                <p className="text-2xl font-black text-gray-800">{money(summary.payablesTotal)}</p>
+                <p className="mt-4 text-[10px] font-black uppercase text-amber-700">Contas a pagar</p>
+                <p className="text-2xl font-black text-amber-700">{money(summary.payablesTotal)}</p>
                 <p className="text-sm text-gray-500 mt-1">
                   {summary.payablesCount === 0
                     ? "Nenhuma conta em aberto"
@@ -244,37 +239,37 @@ export default function FinancePage() {
                   <ArrowRight className="w-5 h-5 text-gray-300" />
                 </div>
                 <p className="mt-4 text-[10px] font-black uppercase text-gray-400">Contas a receber</p>
-                <p className="text-2xl font-black text-gray-800">{money(summary.receivablesTotal)}</p>
+                <p className="text-2xl font-black text-blue-600">{money(summary.receivablesTotal)}</p>
                 <p className="text-sm text-gray-500 mt-1">
                   {summary.receivablesCount === 0
                     ? "Nenhum cliente em débito"
                     : `${summary.receivablesCount} cliente${summary.receivablesCount === 1 ? "" : "s"} com data do débito`}
                 </p>
                 {summary.walletSold > 0 && (
-                  <p className="text-sm text-gray-400 mt-2">Carteira vendida no período {money(summary.walletSold)}</p>
+                  <p className="text-sm text-blue-600 mt-2">Carteira vendida no período {money(summary.walletSold)}</p>
                 )}
               </button>
             </section>
 
-            <section className="bg-amber-50 border border-amber-200 rounded-2xl p-5">
-              <p className="text-[10px] font-black uppercase text-amber-700">Dia do aperto</p>
+            <section className="bg-red-50 border border-red-300 rounded-2xl p-5">
+              <p className="text-[10px] font-black uppercase text-red-700">Dia do aperto</p>
               {tight ? (
                 <>
-                  <p className="text-2xl font-black text-gray-800">{showDate(tight.date)}</p>
-                  <p className="text-gray-700">
+                  <p className="text-2xl font-black text-red-700">{showDate(tight.date)}</p>
+                  <p className="text-red-800">
                     {money(tight.amount)} em {tight.count} conta{tight.count === 1 ? "" : "s"} com esse vencimento.
                   </p>
-                  <p className="text-sm text-amber-800 mt-1">{tightWhen}</p>
+                  <p className="text-sm text-red-800 mt-1">{tightWhen}</p>
                 </>
               ) : (
-                <p className="text-gray-600 mt-1">Nenhuma conta a pagar em aberto.</p>
+                <p className="text-red-800 mt-1">Nenhuma conta a pagar em aberto.</p>
               )}
               {summary.overdueCount > 0 && tight && tight.date >= summary.today && (
-                <p className="text-sm font-bold text-red-600 mt-2">
+                <p className="text-sm font-bold text-red-700 mt-2">
                   Além disso, {money(summary.overdueTotal)} já venceram.
                 </p>
               )}
-              <p className="text-xs text-amber-900/70 mt-3">
+              <p className="text-xs text-red-900/70 mt-3">
                 O aperto compara os vencimentos em aberto. Cada conta a receber guarda a data em que o débito começou.
               </p>
             </section>
@@ -363,17 +358,17 @@ function Stat({
   label,
   value,
   hint,
-  tone = "default",
+  valueClass = "text-gray-800",
 }: {
   label: string;
   value: string;
   hint: string;
-  tone?: "default" | "negative";
+  valueClass?: string;
 }) {
   return (
     <div className="bg-white rounded-2xl border p-4">
       <p className="text-[10px] font-black uppercase text-gray-400">{label}</p>
-      <p className={`text-2xl font-black ${tone === "negative" ? "text-red-600" : "text-gray-800"}`}>{value}</p>
+      <p className={`text-2xl font-black ${valueClass}`}>{value}</p>
       <p className="text-xs text-gray-400 mt-1">{hint}</p>
     </div>
   );

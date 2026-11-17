@@ -27,6 +27,7 @@ export default function PayablesPage() {
   const [expenses, setExpenses] = useState<FinanceExpense[]>([]);
   const [formOpen, setFormOpen] = useState(false);
   const [paying, setPaying] = useState<FinanceExpense | null>(null);
+  const [showAll, setShowAll] = useState(false);
   const [payMethod, setPayMethod] = useState("DINHEIRO");
   const [form, setForm] = useState({
     description: "",
@@ -49,8 +50,12 @@ export default function PayablesPage() {
   }, []);
 
   useEffect(() => {
+    setShowAll(false);
     void load(status);
   }, [load, status]);
+
+  const visibleExpenses = showAll ? expenses : expenses.slice(0, 5);
+  const listTotal = expenses.reduce((sum, expense) => sum + expense.amount, 0);
 
   function openForm() {
     const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
@@ -158,7 +163,7 @@ export default function PayablesPage() {
               {status === "PENDING" ? "Nenhuma conta em aberto." : "Nenhuma despesa paga."}
             </p>
           )}
-          {expenses.map((expense) => (
+          {visibleExpenses.map((expense) => (
             <div key={expense.id} className="border-t first:border-t-0 px-4 py-3 flex justify-between gap-3">
               <div>
                 <p className="font-bold text-gray-800">{expense.description}</p>
@@ -186,6 +191,23 @@ export default function PayablesPage() {
               </div>
             </div>
           ))}
+          {expenses.length > 5 && !showAll && (
+            <button
+              type="button"
+              onClick={() => setShowAll(true)}
+              className="w-full border-t px-4 py-3 text-sm font-bold text-gray-700 hover:bg-gray-50"
+            >
+              Ver mais
+            </button>
+          )}
+          {expenses.length > 0 && (
+            <div className="border-t px-4 py-3 flex justify-between gap-3 bg-gray-50">
+              <span className="text-xs font-black uppercase text-gray-500">
+                {status === "PENDING" ? "Total a pagar" : "Total pago"}
+              </span>
+              <span className="font-black text-gray-800">{money(listTotal)}</span>
+            </div>
+          )}
         </section>
       </main>
 
