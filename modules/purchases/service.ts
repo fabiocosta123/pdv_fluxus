@@ -57,7 +57,12 @@ export type PurchaseSupplier = {
   items: PurchaseSuggestion[];
 };
 
-export async function suggestPurchases() {
+export async function suggestPurchases(range?: { from: string; to: string }) {
+  if (range) return salesList(range.from, range.to);
+  return visitList();
+}
+
+async function visitList() {
   const today = storeToday();
   const from = shiftDay(today, -(LOOKBACK_DAYS - 1));
   const start = new Date(`${from}T00:00:00.000-03:00`);
@@ -121,6 +126,83 @@ export async function suggestPurchases() {
     });
   }
 
+  const suppliers = groupSuppliers(suggestions);
+
+  return {
+    mode: "visit" as const,
+    from,
+    to: today,
+    lookbackDays: LOOKBACK_DAYS,
+    reorderPoint: REORDER_POINT,
+    totalCost: suppliers.reduce((sum, supplier) => sum + supplier.cost, 0),
+    suppliers,
+  };
+}
+
+async function salesList(from: string, to: string) {
+  const start = new Date(`${from}T00:00:00.000-03:00`);
+  const end = new Date(`${to}T23:59:59.999-03:00`);
+  const [products, sales] = await Promise.all([
+    prisma.product.findMany({
+      where: { isActive: true },
+      select: {
+        id: true,
+        name: true,
+        unit: true,
+        stock: true,
+        costPrice: true,
+        supplierName: true,
+      },
+    }),
+    prisma.saleItem.findMany({
+      where: { sale: { status: SaleStatus.COMPLETED, createdAt: { gte: start, lte: end } } },
+      select: { productId: true, quantity: true },
+    }),
+  ]);
+
+  const soldByProduct = new Map<string, number>();
+  for (const sale of sales) {
+    soldByProduct.set(sale.productId, (soldByProduct.get(sale.productId) ?? 0) + Number(sale.quantity));
+  }
+
+  const suggestions: PurchaseSuggestion[] = [];
+  for (const product of products) {
+    const sold = soldByProduct.get(product.id) ?? 0;
+    if (sold <= 0) continue;
+    const quantity = suggestQuantity(sold, product.unit);
+    const stock = Number(product.stock);
+    suggestions.push({
+      supplierName: product.supplierName?.trim() || "Sem fornecedor",
+      productId: product.id,
+      name: product.name,
+      unit: product.unit,
+      stock,
+      sold,
+      weekly: Math.round(sold * 1000) / 1000,
+      visitDays: 0,
+      visitLabel: "",
+      assumedVisit: false,
+      quantity,
+      cost: Math.round(Number(product.costPrice) * quantity),
+      reason: "Vendido no período.",
+    });
+  }
+
+  const suppliers = groupSuppliers(suggestions);
+  const startMs = Date.parse(`${from}T00:00:00Z`);
+  const endMs = Date.parse(`${to}T00:00:00Z`);
+  return {
+    mode: "sales" as const,
+    from,
+    to,
+    lookbackDays: Math.round((endMs - startMs) / 86_400_000) + 1,
+    reorderPoint: REORDER_POINT,
+    totalCost: suppliers.reduce((sum, supplier) => sum + supplier.cost, 0),
+    suppliers,
+  };
+}
+
+function groupSuppliers(suggestions: PurchaseSuggestion[]) {
   const grouped = new Map<string, PurchaseSuggestion[]>();
   for (const item of suggestions) {
     const current = grouped.get(item.supplierName) ?? [];
@@ -128,7 +210,7 @@ export async function suggestPurchases() {
     grouped.set(item.supplierName, current);
   }
 
-  const suppliers: PurchaseSupplier[] = [...grouped.entries()]
+  return [...grouped.entries()]
     .map(([name, items]) => ({
       name,
       cost: items.reduce((sum, item) => sum + item.cost, 0),
@@ -139,11 +221,4 @@ export async function suggestPurchases() {
       if (right.name === "Sem fornecedor") return -1;
       return left.name.localeCompare(right.name, "pt-BR");
     });
-
-  return {
-    lookbackDays: LOOKBACK_DAYS,
-    reorderPoint: REORDER_POINT,
-    totalCost: suppliers.reduce((sum, supplier) => sum + supplier.cost, 0),
-    suppliers,
-  };
 }
