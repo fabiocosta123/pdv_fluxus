@@ -109,6 +109,7 @@ export default function SalesPage() {
     day: Champion | null;
     week: Champion | null;
     month: Champion | null;
+    totals: { day: number; week: number; month: number };
   } | null>(null);
   const [loading, setLoading] = useState(true);
   const [store, setStore] = useState<StoreSettings>(STORE_DEFAULTS);
@@ -135,14 +136,18 @@ export default function SalesPage() {
     setSales(data.sales ?? []);
   }, []);
 
-  useEffect(() => {
-    void load({ from, to, fromTime, toTime });
+  const loadSummary = useCallback(() => {
     fetch("/api/sales/champions")
       .then((response) => (response.ok ? response.json() : null))
       .then((data) => {
         if (data) setChampions(data);
       })
       .catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    void load({ from, to, fromTime, toTime });
+    loadSummary();
     fetch("/api/settings")
       .then((response) => (response.ok ? response.json() : null))
       .then((settings) => {
@@ -151,7 +156,7 @@ export default function SalesPage() {
       .catch(() => undefined);
     // A lista abre no dia de hoje; os filtros seguintes partem do botão.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [load]);
+  }, [load, loadSummary]);
 
   const matches = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -257,6 +262,7 @@ export default function SalesPage() {
     toast.success("Venda atualizada. O troco foi recalculado.");
     setEditing(null);
     void load({ from, to, fromTime, toTime });
+    loadSummary();
   }
 
   async function confirmVoid() {
@@ -272,6 +278,7 @@ export default function SalesPage() {
     toast.success("Venda estornada. O estoque voltou e o caixa deixou de contar essa venda.");
     setVoiding(null);
     void load({ from, to, fromTime, toTime });
+    loadSummary();
   }
 
   return (
@@ -294,6 +301,25 @@ export default function SalesPage() {
       </header>
 
       <main className="max-w-5xl mx-auto p-6 space-y-4">
+        <section className="grid md:grid-cols-3 gap-3">
+          {(
+            [
+              ["Total do dia", champions?.totals.day],
+              ["Total da semana", champions?.totals.week],
+              ["Total do mês", champions?.totals.month],
+            ] as const
+          ).map(([label, total]) => (
+            <article key={label} className="bg-white rounded-2xl border p-4">
+              <p className="text-[10px] font-black uppercase text-blue-700">{label}</p>
+              {champions === null || total === undefined ? (
+                <p className="mt-2 text-sm text-gray-400">Carregando...</p>
+              ) : (
+                <p className="mt-1 text-2xl font-black text-blue-700">{money(total)}</p>
+              )}
+            </article>
+          ))}
+        </section>
+
         <section className="grid md:grid-cols-3 gap-3">
           {(
             [
@@ -321,7 +347,7 @@ export default function SalesPage() {
           ))}
         </section>
         <p className="text-xs text-gray-400">
-          O campeão é o produto com maior quantidade. A margem usa o preço da venda e o custo cadastrado agora.
+          Os totais somam as vendas concluídas. O campeão é o produto com maior quantidade. A margem usa o preço da venda e o custo cadastrado agora.
         </p>
 
         <form

@@ -338,16 +338,33 @@ async function championBetween(from: string, to: string): Promise<Champion | nul
   return best;
 }
 
+async function totalBetween(from: string, to: string) {
+  const { start, end } = historyBounds(from, to, "00:00", "23:59");
+  const result = await prisma.sale.aggregate({
+    where: { status: SaleStatus.COMPLETED, createdAt: { gte: start, lte: end } },
+    _sum: { total: true },
+  });
+  return result._sum.total ?? 0;
+}
+
 export async function listChampions() {
   const today = storeToday();
   const weekStart = shiftDay(today, -((new Date(`${today}T12:00:00.000Z`).getUTCDay() + 6) % 7));
   const monthStart = `${today.slice(0, 8)}01`;
-  const [day, week, month] = await Promise.all([
+  const [day, week, month, dayTotal, weekTotal, monthTotal] = await Promise.all([
     championBetween(today, today),
     championBetween(weekStart, today),
     championBetween(monthStart, today),
+    totalBetween(today, today),
+    totalBetween(weekStart, today),
+    totalBetween(monthStart, today),
   ]);
-  return { day, week, month };
+  return {
+    day,
+    week,
+    month,
+    totals: { day: dayTotal, week: weekTotal, month: monthTotal },
+  };
 }
 
 export async function listSales(input: {
