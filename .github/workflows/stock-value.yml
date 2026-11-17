@@ -1,0 +1,26 @@
+name: Valor do estoque
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  value:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - run: npm ci
+
+      - name: Somar estoque e despesas do minimercado
+        run: node scripts/stock-value.mjs
+        env:
+          PRISMA_SERVICE_TOKEN: ${{ secrets.PRISMA_SERVICE_TOKEN }}
