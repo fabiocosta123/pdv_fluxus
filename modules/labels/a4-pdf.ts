@@ -90,7 +90,10 @@ export function buildA4Pdf(labels: A4Label[]): Uint8Array {
 }
 
 export function downloadA4Labels(labels: A4Label[]) {
-  const blob = new Blob([buildA4Pdf(labels)], { type: "application/pdf" });
+  const bytes = buildA4Pdf(labels);
+  const buffer = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(buffer).set(bytes);
+  const blob = new Blob([buffer], { type: "application/pdf" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
