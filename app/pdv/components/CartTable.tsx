@@ -9,57 +9,108 @@ interface CartItem {
   stock: number;
 }
 
-export const CartTable = ({ cart, removeFromCart }: { cart: CartItem[], removeFromCart: (id: string) => void }) => {
+export const CartTable = ({
+  cart,
+  removeFromCart,
+  activeId,
+}: {
+  cart: CartItem[];
+  removeFromCart: (id: string) => void;
+  activeId?: string | null;
+}) => {
+  const pinned =
+    (activeId ? cart.find((item) => item.id === activeId) : undefined) ?? cart[cart.length - 1];
+  const earlier = pinned ? cart.filter((item) => item.id !== pinned.id) : cart;
+
   return (
-    <div className="flex-1 overflow-auto p-2 lg:p-4 scrollbar-thin">
-      <table className="w-full table-fixed">
-        <thead>
-          <tr className="text-[10px] text-gray-400 uppercase font-bold text-left border-b">
-            <th className="w-16 py-2 px-2">Item</th>
-            <th className="w-1/2 px-2">Descrição</th>
-            <th className="w-20 text-center px-2">Qtd</th>
-            <th className="w-32 text-right hidden sm:table-cell px-2">Unit.</th>
-            <th className="w-32 text-right px-2">Total</th>
-            <th className="w-12 text-center"></th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100">
-          {cart.map((item, index) => (
-            <tr key={item.id} className="text-sm lg:text-lg font-bold hover:bg-gray-50 group">
-              <td className="py-4 px-2 font-mono text-gray-400">
-                {String(index + 1).padStart(3, "0")}
-              </td>
-              <td className="py-4 px-2 overflow-hidden">
-                <div className="flex flex-col truncate">
-                  <span className="uppercase text-blue-900 truncate">{item.name}</span>
-                  {item.quantity > item.stock && (
-                    <span className="text-[10px] text-red-500 font-bold flex items-center gap-1 mt-1">
-                      <AlertTriangle size={12} /> ESTOQUE: {item.stock}
-                    </span>
-                  )}
-                </div>
-              </td>
-              <td className="text-center px-2 text-gray-700 font-mono">
-                {item.quantity.toLocaleString("pt-BR", { minimumFractionDigits: Number.isInteger(item.quantity) ? 0 : 3 })}
-              </td>
-              <td className="text-right hidden sm:table-cell text-gray-500 font-mono">
-                {(item.price / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-              </td>
-              <td className="text-right text-blue-700 font-mono pr-4">
-                {(item.subtotal / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-              </td>
-              <td className="text-center w-10">
-                <button
-                  onClick={() => removeFromCart(item.id)}
-                  className="p-2 text-gray-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
-                >
-                  <Trash2 size={18} />
-                </button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      {pinned && (
+        <div className="shrink-0 border-b border-blue-100 bg-blue-50 px-2 lg:px-4">
+          <table className="w-full table-fixed">
+            <thead>
+              <tr className="text-left text-[10px] font-bold uppercase text-gray-400">
+                <th className="w-16 px-2 py-2">Item</th>
+                <th className="w-1/2 px-2">Descrição</th>
+                <th className="w-20 px-2 text-center">Qtd</th>
+                <th className="hidden w-32 px-2 text-right sm:table-cell">Unit.</th>
+                <th className="w-32 px-2 text-right">Total</th>
+                <th className="w-12 text-center"></th>
+              </tr>
+            </thead>
+            <tbody>
+              <CartRow
+                item={pinned}
+                index={cart.findIndex((line) => line.id === pinned.id)}
+                pinned
+                removeFromCart={removeFromCart}
+              />
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <div className="scrollbar-thin min-h-0 flex-1 overflow-auto p-2 lg:p-4">
+        {earlier.length > 0 && (
+          <table className="w-full table-fixed">
+            <tbody className="divide-y divide-gray-100">
+              {earlier.map((item) => (
+                <CartRow
+                  key={item.id}
+                  item={item}
+                  index={cart.findIndex((line) => line.id === item.id)}
+                  removeFromCart={removeFromCart}
+                />
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
     </div>
   );
 };
+
+function CartRow({
+  item,
+  index,
+  pinned = false,
+  removeFromCart,
+}: {
+  item: CartItem;
+  index: number;
+  pinned?: boolean;
+  removeFromCart: (id: string) => void;
+}) {
+  return (
+    <tr className={`group text-sm font-bold lg:text-lg ${pinned ? "text-blue-950" : "hover:bg-gray-50"}`}>
+      <td className="w-16 px-2 py-4 font-mono text-gray-400">{String(index + 1).padStart(3, "0")}</td>
+      <td className="w-1/2 overflow-hidden px-2 py-4">
+        <div className="flex flex-col truncate">
+          <span className="truncate uppercase text-blue-900">{item.name}</span>
+          {item.quantity > item.stock && (
+            <span className="mt-1 flex items-center gap-1 text-[10px] font-bold text-red-500">
+              <AlertTriangle size={12} /> ESTOQUE: {item.stock}
+            </span>
+          )}
+        </div>
+      </td>
+      <td className="w-20 px-2 text-center font-mono text-gray-700">
+        {item.quantity.toLocaleString("pt-BR", { minimumFractionDigits: Number.isInteger(item.quantity) ? 0 : 3 })}
+      </td>
+      <td className="hidden w-32 text-right font-mono text-gray-500 sm:table-cell">
+        {(item.price / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+      </td>
+      <td className="w-32 pr-4 text-right font-mono text-blue-700">
+        {(item.subtotal / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+      </td>
+      <td className="w-12 text-center">
+        <button
+          onClick={() => removeFromCart(item.id)}
+          className={`p-2 text-gray-300 transition-colors hover:text-red-500 ${pinned ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
+          aria-label={`Remover ${item.name}`}
+        >
+          <Trash2 size={18} />
+        </button>
+      </td>
+    </tr>
+  );
+}

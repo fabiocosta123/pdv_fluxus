@@ -47,6 +47,7 @@ export default function PDVPage() {
   const router = useRouter();
   const [barcode, setBarcode] = useState("");
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [lastLineId, setLastLineId] = useState<string | null>(null);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [payments, setPayments] = useState<{ method: string; value: number }[]>(
     [],
@@ -641,6 +642,7 @@ export default function PDVPage() {
       ];
     });
 
+    setLastLineId(product.id);
     if (overStock) {
       warnOverStock(product, stock);
       return;
@@ -905,7 +907,7 @@ export default function PDVPage() {
       )}
       <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden bg-gray-100 p-2 font-sans lg:flex-row lg:gap-4 lg:p-4">
         {/* COLUNA ESQUERDA: LISTA DE PRODUTOS */}
-        <div className="flex-1 bg-white rounded-lg shadow-sm flex flex-col overflow-hidden order-2 lg:order-1 h-full">
+        <div className="order-2 flex min-h-[8.5rem] max-h-[42%] w-full shrink-0 flex-col overflow-hidden rounded-lg bg-white shadow-sm lg:order-1 lg:h-full lg:max-h-none lg:min-h-0 lg:w-auto lg:flex-1">
           <div className="p-3 border-b bg-blue-600 text-white flex justify-between items-center shrink-0">
             <h1 className="text-sm lg:text-xl font-bold italic">
               🛒 PDV ATIVO
@@ -922,12 +924,12 @@ export default function PDVPage() {
           </div>
 
           {/* Componente extraído */}
-          <CartTable cart={cart} removeFromCart={removeFromCart} />
+          <CartTable cart={cart} removeFromCart={removeFromCart} activeId={lastLineId} />
         </div>
 
         {/* COLUNA DIREITA: BUSCA E TOTAL */}
         {/* COLUNA DIREITA: BUSCA, ATALHOS E TOTAL */}
-        <div className="order-1 flex h-full min-h-0 w-full shrink-0 flex-col gap-2 lg:order-2 lg:w-[450px] lg:gap-3">
+        <div className="order-1 flex min-h-0 w-full flex-1 flex-col gap-2 lg:order-2 lg:h-full lg:w-[450px] lg:flex-none lg:shrink-0 lg:gap-3">
           {/* 1. CAMPO DE BUSCA */}
           <div className="relative z-20 bg-white p-3 lg:p-6 rounded-lg shadow-sm border-t-4 border-blue-600">
             <form onSubmit={handleSearchProduct}>
@@ -1016,7 +1018,7 @@ export default function PDVPage() {
           </div>
 
           {/* 2. TECLAS DE AJUDA, OPERAÇÕES E CANCELAMENTO */}
-          <div className="grid min-h-0 flex-1 content-start grid-cols-2 gap-2 overflow-hidden">
+          <div className="grid min-h-0 flex-1 content-start grid-cols-2 gap-2 overflow-auto">
             {[
               {
                 key: "F1",
