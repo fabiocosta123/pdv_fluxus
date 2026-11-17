@@ -73,7 +73,13 @@ async function main() {
       GROUP BY status
       ORDER BY status
     `);
-    return { products: products.rows[0], expenses: expenses.rows };
+    const openBills = await client.query(`
+      SELECT description, amount::bigint AS amount_cents, to_char("dueDate", 'YYYY-MM-DD') AS due_date
+      FROM "Expense"
+      WHERE status = 'PENDING'
+      ORDER BY "dueDate"
+    `);
+    return { products: products.rows[0], expenses: expenses.rows, openBills: openBills.rows };
   });
   console.log(JSON.stringify(result));
 }
