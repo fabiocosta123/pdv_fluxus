@@ -14,6 +14,7 @@ type ProductRow = {
   price: number;
   barCode: string | null;
   unit: string | null;
+  isActive?: boolean;
 };
 
 type LabelLine = ProductRow & { copies: number };
@@ -77,6 +78,22 @@ export default function PriceLabelsPage() {
   function chooseMedia(next: LabelMedia) {
     setMedia(next);
     window.localStorage.setItem(MEDIA_KEY, next);
+  }
+
+  function addAllProducts() {
+    const catalog = products.filter((product) => product.isActive !== false);
+    if (catalog.length === 0) {
+      toast.error("Nenhum produto para incluir");
+      return;
+    }
+    setLines((current) => {
+      const included = new Set(current.map((line) => line.id));
+      const missing = catalog
+        .filter((product) => !included.has(product.id))
+        .map((product) => ({ ...product, copies: 1 }));
+      return missing.length === 0 ? current : [...current, ...missing];
+    });
+    setSearch("");
   }
 
   function addProduct(product: ProductRow) {
@@ -228,6 +245,15 @@ export default function PriceLabelsPage() {
               </div>
             )}
           </div>
+
+          <button
+            type="button"
+            onClick={addAllProducts}
+            disabled={loading || products.length === 0}
+            className="bg-white border border-gray-200 text-gray-800 px-5 py-3 rounded-2xl text-xs font-black uppercase tracking-tighter disabled:text-gray-300"
+          >
+            Incluir todos
+          </button>
 
           {loading ? (
             <p className="text-sm font-bold text-gray-400 uppercase tracking-widest">Carregando produtos...</p>
