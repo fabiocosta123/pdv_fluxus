@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { MoneyInput } from "../../components/MoneyInput";
 import { formatDocument, onlyDigits } from "@/modules/customers/document";
@@ -199,12 +200,19 @@ export const PaymentModal = ({
   return (
     <>
     {pix && (
-      <div className="fixed inset-0 z-[300] flex items-center justify-center bg-white">
+      <div className="fixed inset-0 z-[300] flex flex-col items-center justify-center gap-8 bg-white px-6">
         <img
           src={pix.qrCode}
           alt="QR Code PIX"
-          className="h-[min(92vw,92vh)] w-[min(92vw,92vh)] object-contain"
+          className="h-[min(56vw,46vh)] w-[min(56vw,46vh)] max-h-80 max-w-80 object-contain"
         />
+        <button
+          type="button"
+          onClick={() => setPix(null)}
+          className="flex items-center gap-2 rounded-2xl border-2 border-gray-900 px-8 py-4 text-sm font-black uppercase tracking-tight text-gray-900"
+        >
+          <ArrowLeft size={18} /> Voltar
+        </button>
       </div>
     )}
     <div className="fixed inset-0 bg-blue-900/80 backdrop-blur-sm flex items-center justify-center z-[100] p-4 no-print text-gray-800">
